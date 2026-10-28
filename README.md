@@ -4,7 +4,7 @@
 
 <h1 align="center">Live☆Twin Community</h1>
 
-<p align="center"><strong>把主题交互、社区交流与卡组工具放进同一个全栈项目。</strong></p>
+<p align="center"><strong>一个可自托管的 Live☆Twin 主题社区，集卡片检索、卡组构筑与社区交流于一体。</strong></p>
 
 <p align="center">Python · Flask · SQLAlchemy · SQLite · 原生 JavaScript · GSAP · PWA</p>
 
@@ -12,9 +12,11 @@
 
 > 封面是 AI 生成的装饰视觉；下方截图展示项目的真实界面。项目为非官方粉丝作品，角色、卡片与相关素材的权利说明见 [第三方素材说明](THIRD_PARTY_NOTICES.md)。
 
-Live☆Twin Community 是一个以游戏王 Live☆Twin / Evil★Twin 为主题的社区与卡片工具站。访客可以浏览角色档案和主题卡册，按名称或多维条件检索卡片；登录后可以发帖、回复、私信、收藏与关注，并创建和分享卡组。
+Live☆Twin Community 是一个以游戏王 Live☆Twin / Evil★Twin 为主题的开源社区与卡片工具站，支持独立运行和自托管。访客可以浏览角色档案和主题卡册，按名称或多维条件检索卡片；登录后可以发帖、回复、私信、收藏与关注，并创建和分享卡组。
 
 仓库收录经过脱敏的程序、公开卡片快照、测试和演示资料。业务数据库、用户上传、真实联系目录、生产凭据与私有运维记录不随仓库发布。
+
+第一次运行可以从[本地启动](#本地启动)开始；详细环境、管理员配置与数据更新步骤见[本地开发指南](docs/local-development.md)。
 
 ## 看看实际界面
 
@@ -47,7 +49,7 @@ Live☆Twin Community 是一个以游戏王 Live☆Twin / Evil★Twin 为主题�
 | 卡组工具 | 主/额/副三区编辑、容量与投入上限校验、同卡异画归一、详情与链接分享 |
 | 管理与基础机制 | 用户与内容管理、公告、管理日志、POST CSRF、持久化速率限制、可配置文本过滤 |
 
-## 三个值得展开的工程点
+## 核心实现
 
 ### 1. 搜索缓存与构筑保存使用当前规则
 
@@ -77,9 +79,11 @@ Live☆Twin Community 是一个以游戏王 Live☆Twin / Evil★Twin 为主题�
 
 需要 **Python 3.10+**。Node.js 只用于运行 JavaScript 测试，启动网站不需要前端打包步骤。
 
-克隆本仓库后，在仓库根目录创建虚拟环境：
+克隆本仓库，在仓库根目录创建虚拟环境：
 
 ```bash
+git clone https://github.com/AriaEternity/live-twin-community.git
+cd live-twin-community
 python -m venv .venv
 ```
 
@@ -163,8 +167,18 @@ python -B -X utf8 scripts/run_isolated_smoke.py
 - 上游卡片服务、字体与动画 CDN 可能不可用，实时搜索和部分视觉资源受网络影响。
 - 文本过滤需要使用者自行配置词表，公开仓库不携带生产词库。
 
-## 作品使用与素材说明
+## 文档与参与
 
-**暂未指定代码开源许可证**；公开源码不等于授予任意复制、修改或分发许可。第三方角色、卡图、数据、字体、依赖及 AI 装饰素材分别见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- [本地开发与配置](docs/local-development.md)：环境、管理员 CLI、数据维护与测试命令。
+- [架构说明](docs/architecture.md)：模块划分、数据流、规则校验与故障回退。
+- [验证记录](docs/validation.md)：本地、CI 与浏览器检查的覆盖范围。
+- [贡献指南](CONTRIBUTING.md)：问题反馈、修改代码与提交 Pull Request。
+- [安全说明](SECURITY.md)、[图片说明](docs/visual-assets.md)与[第三方声明](THIRD_PARTY_NOTICES.md)。
 
-用于简历时，可参考 [项目表述与面试讨论点](docs/resume-notes.md)，并按本人实际承担的职责调整，不应把示例文字直接当作个人贡献证明。
+欢迎复用、反馈和改进。提交问题或示例时，请使用合成数据，并移除账号、Cookie、联系方式及其他私人资料。
+
+## 来源与许可
+
+本仓库自有代码采用 [MIT](LICENSE) 许可。游戏王角色、卡图、效果文本、公开数据快照、字体及外部依赖保留各自权利和上游条款，MIT 不授予这些第三方内容的额外权利。素材来源与范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+本项目为非官方粉丝项目，与 KONAMI 及相关服务提供方无隶属或背书关系。
