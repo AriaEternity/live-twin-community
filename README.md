@@ -67,19 +67,9 @@ Live☆Twin Community 是一个以游戏王 Live☆Twin / Evil★Twin 为主题�
 
 ## 技术与架构
 
-```mermaid
-flowchart LR
-    Browser[浏览器] --> Theme[主题首页<br/>原生 JS / CSS / GSAP]
-    Browser --> Web[Flask + Jinja]
-    Theme --> SW[Service Worker<br/>应用壳与静态缓存]
-    Web --> Routes[Blueprints<br/>社区 / 账号 / 私信 / 卡片 / 卡组 / 管理]
-    Routes --> DB[(SQLite + SQLAlchemy<br/>业务数据 / 查询缓存 / 限速记录)]
-    Routes --> Snapshot[本地卡片快照<br/>属性 / 文本 / 禁限与异画映射]
-    Routes --> SearchAPI[百鸽搜索 API]
-    Refresh[维护脚本] --> Sources[YGOPRODeck / 百鸽 / Konami]
-    Sources --> Refresh
-    Refresh --> Snapshot
-```
+![系统架构图](docs/images/architecture.svg)
+
+详细节点和搜卡回退流程的Mermaid源码见 [架构说明](docs/architecture.md)。
 
 程序按 Blueprint 划分业务，SQLAlchemy 中有 16 个持久化模型。详细数据流、规则契约和边界见 [架构说明](docs/architecture.md)。
 
@@ -112,7 +102,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-打开 **http://127.0.0.1:8080**。程序首次启动会创建本地数据库和默认板块。开发入口只监听本机，并使用开发会话密钥；生产模式必须显式配置 `SECRET_KEY`。代码不会自动加载 `.env`。
+打开 [本地网站](http://127.0.0.1:8080)。程序首次启动会创建本地数据库和默认板块。开发入口只监听本机，并使用开发会话密钥；生产模式必须显式配置 `SECRET_KEY`。代码不会自动加载 `.env`。
 
 注册始终创建普通用户。需要管理权限时，先在本地注册账号，再通过 CLI 显式授予，见 [本地开发与配置](docs/local-development.md)。仓库不提供默认管理员口令。
 

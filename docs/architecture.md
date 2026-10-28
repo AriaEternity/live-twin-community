@@ -4,7 +4,11 @@
 
 ## 组件关系
 
-```mermaid
+![组件关系图](images/architecture.svg)
+
+以下为可复制到Mermaid工具的流程源码：
+
+```text
 flowchart TB
     Browser[浏览器]
     Browser --> Static[主题前端<br/>index.html / css / js]
@@ -71,7 +75,7 @@ flowchart TB
 
 ## 搜卡的读取顺序
 
-```mermaid
+```text
 flowchart TD
     Request[查询词与筛选参数] --> ValidRules{存在有效规则?}
     ValidRules -- 否 --> Unavailable[503，明确不可校验]

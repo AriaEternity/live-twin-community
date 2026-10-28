@@ -11,3 +11,5 @@ Use case: ads-marketing. Asset type: GitHub README cover for a real full-stack w
 ```
 
 卡图、角色等第三方资源说明见根目录 THIRD_PARTY_NOTICES.md。
+
+`images/architecture.svg` 是按实际代码关系编写的矢量架构图，不使用AI生成文字或节点关系。README使用静态SVG以避免依赖外部图形渲染服务；详细流程保留为可复制的Mermaid源码。

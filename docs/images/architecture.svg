@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title description">
+  <title id="title">Live☆Twin Community architecture</title>
+  <desc id="description">Browser theme and Flask blueprints connect to SQLite, public card snapshots and the search API. A verified refresh pipeline maintains snapshots; the service worker caches the application shell.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0L10 4L0 8Z" fill="#A5ACDD"/></marker>
+    <style>
+      .box{fill:#211B3C;stroke:#6C719F;stroke-width:2}
+      .pink{stroke:#EE5BA6}.blue{stroke:#7A9AF1}.gold{stroke:#E2BE70}
+      .heading{font:700 23px sans-serif;fill:#FAF8FF}
+      .body{font:17px sans-serif;fill:#C8CCE8}
+      .line{fill:none;stroke:#A5ACDD;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="650" rx="20" fill="#15102B"/>
+  <text x="42" y="43" class="heading">LIVE☆TWIN / SYSTEM ARCHITECTURE</text>
+  <path class="line" d="M230 250C250 250 245 145 280 145"/>
+  <path class="line" d="M230 285H540"/>
+  <path class="line" d="M395 205V425"/>
+  <path class="line" d="M760 245C835 245 835 135 930 135"/>
+  <path class="line" d="M760 285H930"/>
+  <path class="line" d="M760 325C850 325 830 510 930 510"/>
+  <path class="line" d="M800 535C875 535 860 345 930 345"/>
+  <rect x="40" y="215" width="190" height="120" rx="16" class="box pink"/>
+  <text x="65" y="259" class="heading">Browser</text>
+  <text x="65" y="291" class="body">Pages / interactions</text>
+  <rect x="280" y="85" width="230" height="120" rx="16" class="box pink"/>
+  <text x="305" y="126" class="heading">Theme UI</text>
+  <text x="305" y="157" class="body">Vanilla JS / CSS tokens</text>
+  <text x="305" y="181" class="body">GSAP / card gallery</text>
+  <rect x="280" y="425" width="230" height="120" rx="16" class="box blue"/>
+  <text x="305" y="467" class="heading">Service Worker</text>
+  <text x="305" y="499" class="body">App shell / static cache</text>
+  <text x="305" y="523" class="body">Offline navigation fallback</text>
+  <rect x="540" y="210" width="220" height="145" rx="16" class="box pink"/>
+  <text x="565" y="252" class="heading">Flask + Jinja</text>
+  <text x="565" y="284" class="body">Blueprints</text>
+  <text x="565" y="308" class="body">Community / card tools</text>
+  <text x="565" y="332" class="body">Accounts / moderation</text>
+  <rect x="930" y="85" width="230" height="105" rx="16" class="box blue"/>
+  <text x="955" y="127" class="heading">SQLite</text>
+  <text x="955" y="159" class="body">SQLAlchemy / 16 models</text>
+  <rect x="930" y="240" width="230" height="145" rx="16" class="box gold"/>
+  <text x="955" y="282" class="heading">Card snapshots</text>
+  <text x="955" y="314" class="body">Attributes / effect texts</text>
+  <text x="955" y="338" class="body">OCG rules / artwork IDs</text>
+  <text x="955" y="362" class="body">Current rule revalidation</text>
+  <rect x="930" y="465" width="230" height="105" rx="16" class="box blue"/>
+  <text x="955" y="507" class="heading">YGOCDB API</text>
+  <text x="955" y="539" class="body">Search / keyword cache</text>
+  <rect x="540" y="485" width="260" height="110" rx="16" class="box gold"/>
+  <text x="565" y="527" class="heading">Refresh pipeline</text>
+  <text x="565" y="558" class="body">YGOPRODeck / YGOCDB</text>
+  <text x="565" y="582" class="body">KONAMI verification / hashes</text>
+  <text x="42" y="620" class="body">Public source edition · business data and credentials are local to each deployment.</text>
+</svg>
