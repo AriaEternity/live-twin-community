@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}找回密码 — Live☆Twin 社区{% endblock %}
+{% block content %}
+<div class="container"><div class="page-header"><h1>找回密码</h1></div>
+<p>请联系当前部署的维护者，核实身份后通过服务器命令行重置密码。</p>
+<p>公开演示不提供自动找回服务，也不内置个人联系方式。</p>
+<p><a href="{{ url_for('auth.login') }}">返回登录</a></p></div>
+{% endblock %}

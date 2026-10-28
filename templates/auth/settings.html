@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}个人设置 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="form-card">
+    <h2>个人设置</h2>
+
+    <!-- 当前头像预览：有自定义头像用 96px 圆形 <img>，否则用展示名首字（同尺寸不跳版） -->
+    <div style="text-align:center;margin-bottom:20px;">
+      {% if current_user.avatar_url %}
+        <img class="avatar-img avatar-img-xl" src="{{ current_user.avatar_url }}" alt="{{ current_user.display_name }} 的头像" width="96" height="96" style="margin:0 auto;">
+      {% else %}
+        <div class="avatar avatar-xl" style="margin:0 auto;">{{ current_user.display_name[0] | upper }}</div>
+      {% endif %}
+      <p style="font-size:13px;opacity:.85;margin-top:8px;">{{ current_user.display_name }}</p>
+      <p style="font-size:11px;opacity:.8;">账号：{{ current_user.username }}</p>
+      <button type="button" class="btn btn-secondary" id="avatar-change-btn" style="margin-top:10px;min-height:40px;">更换头像</button>
+      <input type="file" id="avatar-file" accept="image/*" hidden>
+      <p id="avatar-error" class="crop-error" hidden></p>
+      <p style="font-size:11px;opacity:.65;margin-top:6px;">支持 JPG / PNG / WebP / GIF，不超过 8MB；选图后可拖动、缩放裁切</p>
+    </div>
+
+    <form method="post">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="set-nickname">昵称</label>
+        <input class="form-input" type="text" name="nickname" id="set-nickname"
+               maxlength="24" pattern="\S+"
+               title="2-24 个字符，汉字按 2 个字符计算，不能包含空格"
+               value="{{ current_user.nickname }}">
+        <p style="font-size:11px;opacity:.65;margin-top:5px;">2-24 个字符，支持中文、字母、数字和常见符号（不能含空格）；汉字按 2 个字符计算；留空则显示账号名</p>
+      </div>
+      <div class="form-group">
+        <label for="set-sig">个性签名（最多 200 字）</label>
+        <textarea class="form-input" name="signature" id="set-sig" maxlength="200" rows="3"
+                  placeholder="写点什么，会显示在你的帖子下方">{{ current_user.signature }}</textarea>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width:100%;">保存设置</button>
+    </form>
+  </div>
+</div>
+
+<!-- 头像裁切弹窗：选图后打开，canvas 方形取景框（拖动平移 + 滚轮/滑杆缩放） -->
+<div class="crop-modal" id="crop-modal" role="dialog" aria-modal="true" aria-label="裁切头像" hidden>
+  <div class="crop-dialog">
+    <div class="crop-head">
+      <p class="crop-title">裁切头像</p>
+      <button type="button" class="crop-close" id="crop-close" aria-label="关闭裁切窗口" title="关闭">×</button>
+    </div>
+    <div class="crop-stage">
+      <canvas id="crop-canvas" width="480" height="480"></canvas>
+    </div>
+    <div class="crop-controls">
+      <label for="crop-zoom">缩放</label>
+      <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" aria-label="缩放">
+    </div>
+    <p class="crop-error" id="crop-error" hidden></p>
+    <div class="crop-actions">
+      <button type="button" class="btn btn-secondary" id="crop-cancel">取消</button>
+      <button type="button" class="btn btn-primary" id="crop-confirm">确认上传</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var btnChange = document.getElementById('avatar-change-btn');
+  var fileInput = document.getElementById('avatar-file');
+  var topError = document.getElementById('avatar-error');
+  var modal = document.getElementById('crop-modal');
+  var canvas = document.getElementById('crop-canvas');
+  var ctx = canvas.getContext('2d');
+  var zoomInput = document.getElementById('crop-zoom');
+  var cropError = document.getElementById('crop-error');
+  var btnCancel = document.getElementById('crop-cancel');
+  var btnConfirm = document.getElementById('crop-confirm');
+  var CSRF = document.querySelector('input[name="_csrf_token"]').value;
+  var UPLOAD_URL = {{ url_for('auth.upload_avatar') | tojson }};
+
+  var MAX_SIZE = 8 * 1024 * 1024; // 与服务端 MAX_CONTENT_LENGTH 一致：8MB
+  var OUT = 256;                  // 输出头像边长（服务端也会裁到 256×256）
+  var CW = canvas.width;          // 取景框边长（方形）
+
+  var img = null;       // 已解码的源图
+  var imgURL = '';      // objectURL，关闭弹窗时释放
+  var baseScale = 1;    // 「覆盖」模式的基准缩放
+  var scale = 1;        // 当前缩放 = baseScale × 滑杆值
+  var offX = 0, offY = 0; // 图片左上角在取景框内的偏移
+  var scrollY = 0;
+
+  function showTopError(msg) { topError.textContent = msg; topError.hidden = false; }
+  function showCropError(msg) { cropError.textContent = msg; cropError.hidden = false; }
+  function clearCropError() { cropError.hidden = true; }
+
+  // 背景滚锁（踩坑 #20：iOS 旧版不认 body overflow:hidden，用 position:fixed）
+  function lockScroll() {
+    scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = -scrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+  }
+  function unlockScroll() {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    window.scrollTo(0, scrollY);
+  }
+
+  // 图片必须始终覆盖整个方形取景框：把偏移钳制在 [框边长 - 图边长, 0]
+  function clampOffset() {
+    var w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+    offX = Math.min(0, Math.max(CW - w, offX));
+    offY = Math.min(0, Math.max(CW - h, offY));
+  }
+
+  function draw() {
+    ctx.fillStyle = '#14102B';
+    ctx.fillRect(0, 0, CW, CW);
+    ctx.drawImage(img, offX, offY, img.naturalWidth * scale, img.naturalHeight * scale);
+    // 圆形参考线：头像最终是圆的，圆外区域微暗提示
+    ctx.beginPath();
+    ctx.rect(0, 0, CW, CW);
+    ctx.arc(CW / 2, CW / 2, CW / 2 - 5, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(13,10,26,.45)';
+    ctx.fill('evenodd');
+    ctx.beginPath();
+    ctx.arc(CW / 2, CW / 2, CW / 2 - 5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,.75)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function openCrop(image, url) {
+    img = image;
+    imgURL = url;
+    // 初始适配为「覆盖」：短边撑满取景框，长边居中
+    baseScale = Math.max(CW / img.naturalWidth, CW / img.naturalHeight);
+    scale = baseScale;
+    zoomInput.value = 1;
+    offX = (CW - img.naturalWidth * scale) / 2;
+    offY = (CW - img.naturalHeight * scale) / 2;
+    clearCropError();
+    draw();
+    modal.hidden = false;
+    lockScroll();
+    btnConfirm.focus();
+  }
+
+  function closeCrop() {
+    modal.hidden = true;
+    unlockScroll();
+    fileInput.value = ''; // 允许再次选择同一文件
+    if (imgURL) { URL.revokeObjectURL(imgURL); imgURL = ''; }
+    img = null;
+  }
+
+  // 缩放（滑杆/滚轮共用）：以取景框中心为锚点
+  function setZoom(mult) {
+    mult = Math.min(3, Math.max(1, mult));
+    zoomInput.value = mult;
+    var newScale = baseScale * mult;
+    offX = CW / 2 - (CW / 2 - offX) * (newScale / scale);
+    offY = CW / 2 - (CW / 2 - offY) * (newScale / scale);
+    scale = newScale;
+    clampOffset();
+    draw();
+  }
+
+  btnChange.addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    topError.hidden = true;
+    if (f.type.indexOf('image/') !== 0) {
+      showTopError('请选择图片文件');
+      fileInput.value = '';
+      return;
+    }
+    if (f.size > MAX_SIZE) {
+      showTopError('图片不能超过 8MB，请换一张更小的');
+      fileInput.value = '';
+      return;
+    }
+    var url = URL.createObjectURL(f);
+    var im = new Image();
+    im.onload = function () { openCrop(im, url); };
+    im.onerror = function () {
+      URL.revokeObjectURL(url);
+      showTopError('图片读取失败，请换一张试试');
+      fileInput.value = '';
+    };
+    im.src = url;
+  });
+
+  // ── 拖动平移：鼠标 ──
+  var dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('mousedown', function (e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    offX += e.clientX - lastX;
+    offY += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    clampOffset();
+    draw();
+  });
+  document.addEventListener('mouseup', function () { dragging = false; });
+
+  // ── 拖动平移：触屏单指（touch-action:none 兜底，preventDefault 防滚动穿透） ──
+  canvas.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    dragging = true;
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', function (e) {
+    if (!dragging || e.touches.length !== 1) return;
+    offX += e.touches[0].clientX - lastX;
+    offY += e.touches[0].clientY - lastY;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    clampOffset();
+    draw();
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchend', function () { dragging = false; });
+  canvas.addEventListener('touchcancel', function () { dragging = false; });
+
+  // ── 缩放：滑杆 + 滚轮 ──
+  zoomInput.addEventListener('input', function () { setZoom(parseFloat(zoomInput.value)); });
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    setZoom(parseFloat(zoomInput.value) * (e.deltaY < 0 ? 1.08 : 0.92));
+  }, { passive: false });
+
+  btnCancel.addEventListener('click', closeCrop);
+  document.getElementById('crop-close').addEventListener('click', closeCrop);
+  // 不响应遮罩空白处点击（防误触关窗，只能点 ×/取消/Esc 关闭）
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !modal.hidden) closeCrop();
+  });
+
+  // ── 确认：把 256×256 方形区域画到离屏 canvas → JPEG → FormData 上传 ──
+  btnConfirm.addEventListener('click', function () {
+    if (!img) return;
+    clearCropError();
+    var out = document.createElement('canvas');
+    out.width = OUT; out.height = OUT;
+    var octx = out.getContext('2d');
+    octx.fillStyle = '#fff'; // JPEG 无透明通道，先铺白底
+    octx.fillRect(0, 0, OUT, OUT);
+    var k = OUT / CW; // 取景框坐标系 → 输出坐标系
+    octx.drawImage(img, offX * k, offY * k, img.naturalWidth * scale * k, img.naturalHeight * scale * k);
+    out.toBlob(function (blob) {
+      if (!blob) { showCropError('图片处理失败，请换一张试试'); return; }
+      var fd = new FormData();
+      fd.append('avatar', blob, 'avatar.jpg');
+      fd.append('_csrf_token', CSRF);
+      btnConfirm.disabled = true;
+      btnConfirm.textContent = '上传中…';
+      // redirect:'manual' 关键：成功/失败服务端都是 flash + 302 回设置页，
+      // 若让 fetch 自动跟随重定向会消费掉 flash，reload 后提示就丢了；
+      // manual 下同源 302 返回 opaqueredirect，交给 reload 呈现 flash
+      fetch(UPLOAD_URL, { method: 'POST', body: fd, redirect: 'manual' }).then(function (res) {
+        if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.ok) {
+          location.reload();
+          return;
+        }
+        showCropError(res.status === 413 ? '图片超过 8MB 上限，请换一张更小的'
+          : '上传失败（' + res.status + '），请稍后再试');
+        btnConfirm.disabled = false;
+        btnConfirm.textContent = '确认上传';
+      }).catch(function () {
+        showCropError('网络异常，上传失败，请检查网络后重试');
+        btnConfirm.disabled = false;
+        btnConfirm.textContent = '确认上传';
+      });
+    }, 'image/jpeg', 0.85);
+  });
+})();
+</script>
+{% endblock %}

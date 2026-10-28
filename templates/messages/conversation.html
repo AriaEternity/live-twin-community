@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}与 {{ other.display_name }} 的对话 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <a class="back-link" href="{{ url_for('messages.inbox') }}">‹ 返回私信列表</a>
+  <div class="page-header">
+    <h1>与 <span class="name-truncate-lg" title="{{ other.display_name }}">{{ other.display_name }}</span> 的对话</h1>
+  </div>
+
+  <!-- 消息气泡：自己发的靠右（粉系），对方发的靠左（蓝系） -->
+  <div class="msg-list">
+    {% for m in messages %}
+    {% set own = (m.sender_id == current_user.id) %}
+    {% set u = m.sender %}
+    <div class="msg-row {{ 'own' if own }}">
+      {% if u.avatar_url %}
+      <img class="avatar-img msg-avatar" src="{{ u.avatar_url }}" alt="" width="36" height="36">
+      {% else %}
+      <div class="avatar msg-avatar" style="background:{{ ['#EE5BA6','#4A6FD0','#7CE85A','#B02A6E'][u.id % 4] }};">{{ u.display_name[0] }}</div>
+      {% endif %}
+      <div class="msg-bubble">
+        {# 允许空文字只发图：正文为空不渲染空正文块 #}
+        {% if m.content %}
+        <div class="msg-body">{{ m.content|render_content }}</div>
+        {% endif %}
+        {# 图片附件：复用论坛帖子同款样式（css/forum.css 全局）；灯箱 JS 是帖子页私有，这里点击直链打开原图 #}
+        {% if m.images %}
+        <div class="post-attachments">
+          {% for a in m.images %}
+          <a class="attach-zoom" href="{{ url_for('main.uploaded_file', filename=a.filename) }}">
+            <img src="{{ url_for('main.uploaded_file', filename=a.filename) }}" alt="附图" loading="lazy">
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="msg-time">{{ m.created_at|bjtime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    </div>
+    {% else %}
+    {{ empty_state('还没有消息，说点什么吧', variant='icon', icon='✉') }}
+    {% endfor %}
+  </div>
+
+  <!-- 回复表单 -->
+  <div class="msg-form-card">
+    <form method="post" action="{{ url_for('messages.conversation', user_id=other.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      {# 允许空文字只发图：textarea 不再 required #}
+      <textarea class="form-textarea" name="content" placeholder="发送私信…" maxlength="2000" aria-label="私信内容"></textarea>
+      <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+        <label>附图（可选，最多 3 张）</label>
+        <input class="form-input" type="file" name="images" accept="image/png,image/jpeg,image/gif,image/webp" multiple>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn btn-primary" type="submit">发送</button>
+        <span style="font-size:12px;opacity:.7;">最多 3 张图，可不发文字</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+/* 私信对话气泡 */
+.msg-list { margin-top: 8px; }
+.msg-row { display: flex; align-items: flex-end; gap: 10px; margin: 14px 0; }
+.msg-row.own { flex-direction: row-reverse; }
+.msg-avatar { width: 36px; height: 36px; font-size: 14px; flex-shrink: 0; }
+.msg-bubble {
+  max-width: 68%; padding: 10px 14px; border-radius: 16px;
+  word-break: break-word; font-size: 14px; line-height: 1.6;
+}
+/* 对方：蓝系浅色气泡，左下角小圆角 */
+.msg-row:not(.own) .msg-bubble {
+  background: rgba(74,111,208,.12); border: 1px solid rgba(74,111,208,.3);
+  border-bottom-left-radius: 4px; color: var(--ink);
+}
+/* 自己：主色粉渐变实心气泡，右下角小圆角 */
+.msg-row.own .msg-bubble {
+  background: linear-gradient(135deg, var(--ksk-primary), var(--ksk-deep));
+  border-bottom-right-radius: 4px; color: #fff;
+}
+.msg-time { font-size: 10px; opacity: .75; margin-top: 4px; }
+.msg-row.own .msg-time { text-align: right; }
+/* 气泡里的表情图限高，防撑破气泡（只限正文区；附图由 .post-attachments 自己的规则管） */
+.msg-body img { max-height: 48px; vertical-align: middle; }
+
+.msg-form-card {
+  margin-top: 22px; padding: 18px; border-radius: 14px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+}
+
+@media (max-width: 600px) {
+  /* 移动端气泡放宽、头像缩小 */
+  .msg-bubble { max-width: 82%; font-size: 13px; }
+  .msg-avatar { width: 30px; height: 30px; font-size: 12px; }
+  .msg-row { gap: 8px; }
+  /* iOS 聚焦 <16px 输入框会自动放大页面（踩坑 #18） */
+  .msg-form-card .form-textarea { font-size: 16px; }
+}
+</style>
+{% endblock %}

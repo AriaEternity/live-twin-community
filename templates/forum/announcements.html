@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}站内公告 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div>
+      <h1>站内公告</h1>
+      <p>站长的碎碎念和重要通知都在这里</p>
+    </div>
+    <a class="btn btn-secondary" href="{{ url_for('forum.index') }}">返回论坛</a>
+  </div>
+
+  {% if announcements %}
+  <div class="ann-list">
+    {% for a in announcements %}
+    <article class="ann-item">
+      <div class="ann-item-head">
+        <h3 class="ann-item-title">{{ a.title }}</h3>
+        <time class="ann-item-time">{{ a.created_at|bjtime('%Y-%m-%d %H:%M') }}</time>
+      </div>
+      <div class="ann-item-body">{{ a.content }}</div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">还没有发布过公告 · 去论坛 <a href="{{ url_for('forum.index') }}">逛逛</a></div>
+  {% endif %}
+</div>
+
+<style>
+.ann-list { display: grid; gap: 12px; }
+.ann-item {
+  padding: 18px 20px; border-radius: 12px;
+  background: rgba(255,255,255,.6); border: 1px solid rgba(21,16,43,.08);
+}
+.ann-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ann-item-title { margin: 0; font-size: 17px; }
+.ann-item-time { font-size: 12px; opacity: .65; white-space: nowrap; }
+.ann-item-body { margin-top: 10px; font-size: 14px; line-height: 1.8; white-space: pre-line; word-break: break-word; }
+</style>
+{% endblock %}

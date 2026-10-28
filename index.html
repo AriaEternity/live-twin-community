@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Live☆Twin Channel — 直播☆双子</title>
+<meta name="description" content="直播☆双子（Live☆Twin）沉浸式主题网站 —— 欢迎来到姬丝吉尔与璃拉的频道。">
+  <!-- Open Graph：分享时展示站点卡片 -->
+  <meta property="og:title" content="Live☆Twin Channel — 直播☆双子">
+  <meta property="og:description" content="虚拟主播姬丝吉尔 & 璃拉正在直播！卡册、论坛、搜卡，粉丝同好一网打尽。">
+  <meta property="og:image" content="cards/cropped/82699999.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+
+<!-- 第三方源预热：提前建连字体/卡图/GSAP CDN，缩短首屏阻塞 -->
+<link rel="preconnect" href="https://fonts.loli.net" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.loli.net">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+<!-- 字体：中文 Noto Sans SC / 像素日文 DotGothic16 / 圆体 M PLUS Rounded 1c -->
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=DotGothic16&display=swap">
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+
+<!-- 首屏关键图预载 -->
+<link rel="preload" as="image" href="cards/cropped/36326160.jpg">
+<link rel="preload" as="image" href="cards/cropped/73810864.jpg">
+
+<link rel="stylesheet" href="css/tokens.css?v=20260726">
+<link rel="stylesheet" href="css/style.css?v=20261027b">
+<!-- JS 禁用时：BOOT 遮罩不挡住内容，直接可读 -->
+<noscript><style>#boot { display: none !important; }</style></noscript>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>⭐</text></svg>">
+<!-- PWA：可安装到主屏幕（图标=璃拉甜心裁切图）；sw.js 走 Flask 根路由 + no-cache -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#FDF6FB">
+<link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Live☆Twin">
+<script>
+/* BOOT 期间 Tab 焦点圈禁（内联先行注册，不等 main.js/GSAP 加载）：
+   #boot 可见时 Tab 只在「跳过/进入」间循环——Chrome 会把 Tab 聚焦元素滚动进视口，
+   overflow:hidden 也拦不住，fixed 的 #boot 会随布局视口被拖走（踩坑 #32） */
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab') return;
+  var boot = document.getElementById('boot');
+  if (!boot || getComputedStyle(boot).display === 'none') return;
+  var scope = [document.getElementById('boot-skip'), document.getElementById('enter-btn')];
+  var i = scope.indexOf(document.activeElement);
+  e.preventDefault();
+  // preventScroll：矮屏（≤600px 高）下 #boot 是 overflow-y:auto 滚动容器，默认 focus 会把内容拉来拉去
+  scope[e.shiftKey ? (i <= 0 ? scope.length - 1 : i - 1) : (i === scope.length - 1 ? 0 : i + 1)].focus({ preventScroll: true });
+});
+</script>
+</head>
+<body>
+
+<!-- ═══════════ 全局层 ═══════════ -->
+<canvas id="particles"></canvas>
+<div id="danmaku-layer" aria-hidden="true"></div>
+<div id="glitch-overlay" aria-hidden="true"></div>
+<div id="scanlines" aria-hidden="true"></div>
+
+<!-- 全局直播 HUD -->
+<header id="live-hud" class="hidden">
+  <div class="hud-left">
+    <span class="hud-live-dot"></span><span class="hud-live-text">LIVE</span>
+    <span class="hud-channel">Live☆Twin Channel</span>
+    <span class="hud-time" id="beijing-time"></span>
+  </div>
+  <div class="hud-right">
+    <span class="hud-viewers"><i>👁</i><b id="viewer-count">13,542</b></span>
+    <a class="hud-forum needs-server" href="/forum/">☆ 社区</a>
+    <a class="hud-forum hud-install needs-server" href="/install.html">📱<span class="hi-txt"> 安装</span></a>
+    <button id="danmaku-toggle" type="button" aria-pressed="true">💬 弹幕</button>
+    <button id="follow-btn" type="button">☆ 关注</button>
+  </div>
+</header>
+
+<!-- 模式指示器 ☆⇄★ -->
+<div id="mode-badge" class="hidden"><span id="mode-star">☆</span></div>
+
+<!-- 侧边进度导航 -->
+<nav id="scene-nav" class="hidden" aria-label="场景导航">
+  <a href="#live" data-scene="live"><i>☆</i><s>开播</s></a>
+  <a href="#hijack" data-scene="hijack"><i>⚠</i><s>劫持</s></a>
+  <a href="#phantom" data-scene="phantom"><i>★</i><s>怪盗</s></a>
+  <a href="#profiles" data-scene="profiles"><i>❖</i><s>档案</s></a>
+  <a href="#sunny" data-scene="sunny"><i>☀</i><s>桑妮</s></a>
+  <a href="#gallery" data-scene="gallery"><i>▦</i><s>卡册</s></a>
+  <a href="#outro" data-scene="outro"><i>♪</i><s>下播</s></a>
+</nav>
+
+<main id="main">
+
+<!-- ═══════════ SCENE 0 · BOOT 接入 ═══════════ -->
+<section id="boot" class="scene">
+  <button id="boot-skip" type="button">跳过 ›</button>
+  <div class="boot-inner">
+    <pre id="boot-noise" class="boot-noise" aria-hidden="true"></pre>
+    <p class="boot-line dotgothic"><span id="boot-typed"></span><span class="caret">▌</span></p>
+    <p class="boot-makai dotgothic" id="boot-makai">⍜⌇⊑⊾ ⋈ ⍙⍜⌿ ⏧⍜⏃⌇⏁ ⋈ ⌇⟟☌⋏⏃⌰</p>
+    <div id="boot-logo" class="boot-logo">
+      <span class="boot-star">☆</span>
+      <span class="boot-title">Live<i>☆</i>Twin <em>Channel</em></span>
+      <span class="boot-sub dotgothic">ライブ☆ツイン・チャンネル</span>
+    </div>
+    <button id="enter-btn" type="button">▶ 进入直播间</button>
+    <p class="boot-note">非官方粉丝自制 · 素材 © KONAMI · 建议开启声音（并没有声音）</p>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 1 · 直播间 ☆ ═══════════ -->
+<section id="live" class="scene mode-live">
+  <div class="pop-bg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <!-- 装饰星星（动效层）：位置/尺寸/相位走行内 CSS 变量，twinkle 动画在 style.css -->
+  <span class="deco-star" style="--x:8%;--y:33%;--s:26px;--c:var(--ksk-primary)" aria-hidden="true">✦</span>
+  <span class="deco-star" style="--x:89%;--y:24%;--s:22px;--c:var(--lil-primary);--d:-1.7s" aria-hidden="true">✦</span>
+  <div class="live-stage">
+    <div class="live-title-wrap">
+      <p class="scene-kicker dotgothic">ただいま配信中！</p>
+      <h1 class="live-title">
+        <span class="t-kisikil">キスキル</span><span class="t-amp">＆</span><span class="t-lilla">リィラ</span>
+      </h1>
+      <p class="live-title-cn">姬丝吉尔 与 璃拉 的频道</p>
+      <div id="live-sc-bar" aria-hidden="true"></div>
+      <p class="vbex-quote">
+        <span class="vbex-jp">「カワイイ」を極めるために魔界からやってきた、天使のような小悪魔コンビ</span>
+        <span class="vbex-cn">为了将『可爱』做到极致而从魔界远道而来的、天使般的小恶魔组合</span>
+      </p>
+    </div>
+
+    <div class="twins-stage">
+      <!-- float-wrap：idle 呼吸浮动包装层（.twin-sticker 的 transform 归 GSAP tilt/视差管，浮动只能加在包装上，踩坑 #7） -->
+      <div class="float-wrap">
+        <figure class="twin-sticker st-kisikil" data-tilt>
+          <img src="cards/cropped/36326160.jpg" alt="直播☆双子 姬丝吉尔" width="540" height="540">
+          <figcaption><b>姬丝吉尔</b><span>元气担当 · 小尖牙</span></figcaption>
+        </figure>
+      </div>
+      <div class="float-wrap fw-alt">
+        <figure class="twin-sticker st-lilla" data-tilt>
+          <img src="cards/cropped/73810864.jpg" alt="直播☆双子 璃拉" width="540" height="540">
+          <figcaption><b>璃拉</b><span>毒舌担当 · 鲨鱼玩偶</span></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="scroll-hint"><span>SCROLL</span><i>▼</i></div>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 2 · 信号劫持 ═══════════ -->
+<section id="hijack" class="scene mode-dark">
+  <div class="hijack-inner">
+    <p class="hijack-warn dotgothic" id="hijack-warn">⚠ SIGNAL INTERRUPTED ⚠</p>
+    <figure class="hijack-card">
+      <img src="cards/61976639.jpg" alt="秘密验证语" loading="lazy" width="421" height="614">
+      <figcaption>加密委托 · 接入中</figcaption>
+      <span class="hj-stamp" aria-hidden="true">★</span>
+    </figure>
+    <p class="hijack-code dotgothic">— 暗号委托接入 —</p>
+    <h2 class="hijack-title">
+      <span class="hj-live">Live☆Twins</span>
+      <span class="hj-q">は</span>
+      <span class="hj-evil">Evil★Twin？</span>
+    </h2>
+    <p class="hijack-sub">—— THE CHRONICLES 第7段 · 暗号「プランB」确认 ——</p>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 3 · 怪盗夜行 ★ ═══════════ -->
+<section id="phantom" class="scene mode-evil">
+  <div class="city" aria-hidden="true">
+    <div class="moon"></div>
+    <div class="spotlight sl-a"></div>
+    <div class="spotlight sl-b"></div>
+    <svg class="skyline" viewBox="0 0 1440 320" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0,320 L0,180 L40,180 L40,140 L90,140 L90,200 L130,200 L130,120 L170,120 L170,90 L200,90 L200,160 L250,160 L250,110 L300,110 L300,190 L350,190 L350,150 L410,150 L410,80 L450,80 L450,130 L500,130 L500,170 L560,170 L560,100 L600,100 L600,60 L640,60 L640,140 L700,140 L700,180 L760,180 L760,120 L810,120 L810,160 L860,160 L860,90 L910,90 L910,150 L970,150 L970,110 L1030,110 L1030,170 L1080,170 L1080,130 L1140,130 L1140,70 L1180,70 L1180,140 L1240,140 L1240,180 L1290,180 L1290,120 L1340,120 L1340,160 L1390,160 L1390,190 L1440,190 L1440,320 Z"/>
+    </svg>
+    <div class="city-lights" aria-hidden="true"></div>
+    <!-- 怪盗夜空星闪（动效层）：深蓝夜幕里的细小星光，与月亮/探照灯同层 -->
+    <span class="deco-star" style="--x:16%;--y:10%;--s:15px;--c:#fff" aria-hidden="true">✦</span>
+    <span class="deco-star" style="--x:36%;--y:5%;--s:12px;--c:var(--gold);--d:-.9s" aria-hidden="true">✦</span>
+    <span class="deco-star" style="--x:58%;--y:13%;--s:14px;--c:var(--lil-neon);--d:-1.8s" aria-hidden="true">✦</span>
+    <span class="deco-star" style="--x:66%;--y:8%;--s:12px;--c:#fff;--d:-2.6s" aria-hidden="true">✦</span>
+  </div>
+
+  <div class="phantom-content">
+    <p class="scene-kicker dotgothic">怪盗タイム！</p>
+    <h2 class="phantom-title"><span>Evil</span><i>★</i><span>Twin</span></h2>
+    <p class="phantom-notice dotgothic" aria-hidden="true">—— 予告状 ——</p>
+    <p class="phantom-vbex">其真实身份，是专门行窃的实力派怪盗组合——如彗星般突然出现在地下世界特工排行榜上的传奇怪盗。目标越是宝石之类的『可爱』之物，干劲就越足。</p>
+
+    <figure class="phantom-hero">
+      <img src="cards/cropped/62098216.jpg" alt="邪恶★双子 姬丝吉尔・璃拉" loading="lazy" width="540" height="540">
+      <figcaption class="hero-cap">
+        <b>邪恶★双子 姬丝吉尔・璃拉</b>
+        <span>「对于两人来说，这不过是比选视频的预览缩略图更加轻松的任务。」</span>
+      </figcaption>
+    </figure>
+
+    <div class="md-duo">
+      <!-- float-wrap：同上，.md-art 的 transform 归 GSAP tilt 管，idle 浮动加在包装层 -->
+      <div class="float-wrap">
+        <figure class="md-art md-ksk" data-tilt>
+          <img src="img/md_kisikil.png" alt="姬丝吉尔 等身涂鸦立绘" loading="lazy" width="800" height="800">
+          <figcaption>KI-SIKIL <i>// 粉色彗星</i></figcaption>
+        </figure>
+      </div>
+      <div class="float-wrap fw-alt">
+        <figure class="md-art md-lil" data-tilt>
+          <img src="img/md_lilla.png" alt="璃拉 等身涂鸦立绘" loading="lazy" width="800" height="800">
+          <figcaption>LIL-LA <i>// 蓝色月光</i></figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="evil-cards">
+      <figure class="mini-card" role="button" tabindex="0" data-card="9205573"><img src="cards/9205573.jpg" alt="邪恶★双子 姬丝吉尔" loading="lazy" width="421" height="614"><figcaption>邪恶★双子 姬丝吉尔</figcaption></figure>
+      <figure class="mini-card" role="button" tabindex="0" data-card="36609518"><img src="cards/36609518.jpg" alt="邪恶★双子 璃拉" loading="lazy" width="421" height="614"><figcaption>邪恶★双子 璃拉</figcaption></figure>
+      <figure class="mini-card" role="button" tabindex="0" data-card="6636319"><img src="cards/6636319.jpg" alt="邪恶★双子 姬丝吉尔・成交" loading="lazy" width="421" height="614"><figcaption>邪恶★双子 姬丝吉尔・成交</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 4 · 角色档案 ═══════════ -->
+<section id="profiles" class="scene mode-profile">
+  <p class="scene-kicker dotgothic">PROFILE ⟡ 档案</p>
+  <h2 class="section-title"><span>双子档案</span><s>ふたごプロフィール</s></h2>
+
+  <div class="profile-grid">
+    <article class="profile-card pf-ksk">
+      <span class="pf-badge dotgothic" aria-hidden="true">MARVELOUS!</span>
+      <header>
+        <h3>姬丝吉尔 <span class="jp">キスキル</span></h3>
+        <p class="pf-role">元气担当 // 粉色彗星</p>
+        <p class="pf-likes">喜欢：鞋子、跳舞和小动物</p>
+      </header>
+      <div class="flip-row">
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/36326160.jpg" alt="姬丝吉尔 直播服" loading="lazy"></div>
+          <div class="flip-back"><b>直播形态 ☆</b><p>品红长发 + 乳白小恶魔角，粉白连帽衫露脐装。招牌是小尖牙咧嘴坏笑。</p></div>
+        </div></div>
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/9205573.jpg" alt="姬丝吉尔 怪盗服" loading="lazy"></div>
+          <div class="flip-back"><b>怪盗形态 ★</b><p>超大粉宽檐帽 + 橙黄眼镜，全息投影衣装展开。wink 怪盗人气极高。</p></div>
+        </div></div>
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/54257392.jpg" alt="姬丝吉尔 Frost" loading="lazy"></div>
+          <div class="flip-back"><b>Frost · 圣诞 ☆</b><p>雪人帽 + 红白条纹外套。被璃拉的企划套上的节日限定装，驾驭度满分。</p></div>
+        </div></div>
+      </div>
+      <p class="pf-quote">「被璃拉的企划套着穿各种搞怪服装，却靠职业精神完美驾驭——在魔界也算头号怪人。」</p>
+    </article>
+
+    <article class="profile-card pf-lil">
+      <span class="pf-badge dotgothic" aria-hidden="true">GOOD JOB</span>
+      <header>
+        <h3>璃拉 <span class="jp">リィラ</span></h3>
+        <p class="pf-role">毒舌担当 // 蓝色月光</p>
+        <p class="pf-likes">喜欢：鲨鱼、小钱钱和好评</p>
+      </header>
+      <div class="flip-row">
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/73810864.jpg" alt="璃拉 直播服" loading="lazy"></div>
+          <div class="flip-back"><b>直播形态 ☆</b><p>浅蓝短发 + 蝙蝠翼贝雷帽，怀抱尖牙鲨鱼玩偶。半睁眼无表情是常态。</p></div>
+        </div></div>
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/36609518.jpg" alt="璃拉 怪盗服" loading="lazy"></div>
+          <div class="flip-back"><b>怪盗形态 ★</b><p>机械蝴蝶翼披风 + 蓝护目镜，深蓝夜色中的幻影。认真时会说唱。</p></div>
+        </div></div>
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/81078880.jpg" alt="璃拉 Treat" loading="lazy"></div>
+          <div class="flip-back"><b>Treat · 万圣 ☆</b><p>绷带 + 紫橙条纹 + 僵尸鲨。璃拉兴趣全开的「自我满足衣装」。</p></div>
+        </div></div>
+        <div class="flip-card" tabindex="0"><div class="flip-inner">
+          <div class="flip-front"><img src="cards/cropped/82699999.jpg" alt="璃拉 Sweet" loading="lazy"></div>
+          <div class="flip-back"><b>Sweet · 情人节 ☆</b><p>女仆围裙 + 比心。「恶心和丑都是可爱的一种。」——但可爱是第一名。</p></div>
+        </div></div>
+      </div>
+      <p class="pf-quote">「喜欢鲨鱼电影，但是更喜欢小钱钱。小钱钱也喜欢我。」</p>
+    </article>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 5 · 麻烦桑妮 ═══════════ -->
+<section id="sunny" class="scene mode-sunny">
+  <p class="scene-kicker dotgothic">WARNING ☀ ライバル出現</p>
+  <h2 class="section-title sunny-title"><span>麻烦桑妮</span><s>トラブル・サニー</s></h2>
+
+  <div class="ranking-ui">
+    <div class="rank-head"><span class="rank-tab">▤ 排行榜</span><span class="rank-sub">本周热门视频</span></div>
+    <div class="rank-item rank-1">
+      <span class="rank-no">1</span>
+      <img src="cards/cropped/37582948.jpg" alt="直播☆双子 麻烦桑" loading="lazy">
+      <div class="rank-info"><b>【曝光】人气主播的真身是怪盗！？</b><span>UP：桑妮团 ▶ 9,999,999 次播放</span></div>
+      <span class="rank-tag">NEW!</span>
+    </div>
+    <div class="rank-item rank-2">
+      <span class="rank-no">2</span>
+      <img src="cards/cropped/35487920.jpg" alt="直播☆双子 频道" loading="lazy">
+      <div class="rank-info"><b>Live☆Twin 频道 · 今晚也照常开播☆</b><span>UP：Live☆Twin ▶ 8,888,888 次播放</span></div>
+    </div>
+    <div class="rank-item rank-3">
+      <span class="rank-no">3</span>
+      <img src="cards/cropped/72233469.jpg" alt="璃拉说唱" loading="lazy">
+      <div class="rank-info"><b>【联动回】露娜打碟之夜 · 弹幕爆炸</b><span>UP：露娜Official ▶ 7,777,777 次播放</span></div>
+    </div>
+  </div>
+
+  <div class="sunny-duo">
+    <p class="sunny-intro"><b>桑妮团</b>——同为非法特工的竞争对手。团长<b>桑妮</b>（金发钻头双马尾）与监看官<b>露娜</b>（银灰短发 · DJ技术一流）。曝光双子真身、调包宝物（蠢贼游戏）……但联动回的露娜，打碟比谁都投入。</p>
+    <figure class="sunny-card" role="button" tabindex="0" data-card="93672138">
+      <img src="cards/93672138.jpg" alt="邪恶★双子 麻烦桑妮" loading="lazy" width="421" height="614">
+      <figcaption>邪恶★双子 麻烦桑妮</figcaption>
+    </figure>
+    <div class="sunny-minis">
+      <figure class="mini-card" role="button" tabindex="0" data-card="27923575"><img src="cards/27923575.jpg" alt="蠢贼游戏" loading="lazy" width="421" height="614"><figcaption>蠢贼游戏</figcaption></figure>
+      <figure class="mini-card" role="button" tabindex="0" data-card="72233469"><img src="cards/72233469.jpg" alt="璃拉说唱" loading="lazy" width="421" height="614"><figcaption>璃拉说唱</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ SCENE 6 · 卡册 ═══════════ -->
+<section id="gallery" class="scene mode-gallery">
+  <p class="scene-kicker dotgothic">CARD ⟡ カード図鑑</p>
+  <h2 class="section-title"><span>主题卡图鉴</span><s><span data-card-count>19</span>枚コレクション</s></h2>
+  <p class="gallery-source">资料核对 <time datetime="2026-10-27">2026.10.27</time> · 本家与剧情关联卡选集<br>中文资料：百鸽社区卡库 · 发行记录：<a href="https://www.db.yugioh-card.com/yugiohdb/?request_locale=ja" target="_blank" rel="noopener noreferrer">KONAMI 卡片数据库</a></p>
+
+  <div class="gallery-filters" role="tablist">
+    <button class="gf-btn active" data-filter="all" type="button">全部 <i>19</i></button>
+    <button class="gf-btn" data-filter="live" type="button">☆ 直播</button>
+    <button class="gf-btn" data-filter="evil" type="button">★ 怪盗</button>
+    <button class="gf-btn" data-filter="spell" type="button">魔法</button>
+    <button class="gf-btn" data-filter="trap" type="button">陷阱</button>
+  </div>
+
+  <div id="gallery-grid" class="gallery-grid"><!-- JS 渲染 --></div>
+</section>
+
+<!-- ═══════════ SCENE 7 · 下播 ═══════════ -->
+<section id="outro" class="scene mode-outro">
+  <!-- 下播场景星闪（动效层）：z-index 1，正文层 .outro-inner 已提层压在其上 -->
+  <span class="deco-star" style="--x:6%;--y:10%;--s:24px;--c:var(--gold)" aria-hidden="true">✦</span>
+  <span class="deco-star" style="--x:85%;--y:20%;--s:20px;--c:var(--ksk-neon);--d:-1.2s" aria-hidden="true">✦</span>
+  <span class="deco-star" style="--x:78%;--y:72%;--s:22px;--c:var(--lil-neon);--d:-2.2s" aria-hidden="true">✦</span>
+  <div class="outro-inner">
+    <p class="scene-kicker dotgothic">ご視聴ありがとうございました！</p>
+    <div class="outro-title-wrap">
+      <i class="outro-star outro-star-l" aria-hidden="true">☆</i>
+      <h2 class="outro-title">感谢观看</h2>
+      <i class="outro-star outro-star-r" aria-hidden="true">☆</i>
+    </div>
+    <p class="outro-vbex5">（VBEX5·后续）一头扎进直播事业的两人，在本职的地下特工排行榜上一落千丈——即便如此，璃拉担心的似乎依然是她们作为主播的立场。</p>
+
+    <p class="outro-signoff dotgothic" aria-hidden="true"><span class="so-k">おつキス～</span> <span class="so-l">おつリラ～</span></p>
+    <div class="outro-next">
+      <div class="outro-status">
+        <span class="os-item">📺 次回直播：敬请期待</span>
+        <span class="os-item os-rank">🕵️ 地下特工排行榜：暴跌中 ▼▼</span>
+      </div>
+      <a class="outro-forum-btn needs-server" href="/forum/">频道社区 ›</a>
+      <a class="outro-forum-btn needs-server" href="/install.html">📱 装进主屏幕 ›</a>
+    </div>
+
+    <button id="super-chat-btn" type="button">💰 发送 SuperChat <i class="sc-star" aria-hidden="true">☆</i></button>
+
+    <footer class="site-footer">
+      <p>本网站为非官方粉丝作品 · 角色与卡图 © KONAMI<br>
+      卡图：YGOPRODeck / yugioh.fandom.com · 设定：VBEX · THE CHRONICLES<br>
+      <span class="dotgothic">Live☆Twin は Evil★Twin —— ライブの裏は、イビル。</span><br>
+      
+      </p>
+    </footer>
+  </div>
+</section>
+
+</main>
+
+<!-- 卡片详情弹层 -->
+<div id="card-modal" class="hidden" role="dialog" aria-modal="true">
+  <div class="modal-backdrop"></div>
+  <div class="modal-body">
+    <button class="modal-close" type="button" aria-label="关闭">✕</button>
+    <div class="modal-img-wrap">
+      <img class="modal-img" alt="卡片详情" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E">
+      <div class="modal-loading" aria-hidden="true">
+        <span class="ml-spin"></span>
+        <span class="ml-text">直播间网络不稳定<br>卡图缓冲中…</span>
+      </div>
+    </div>
+    <div class="modal-info">
+      <h3 class="modal-name"></h3>
+      <p class="modal-en dotgothic"></p>
+      <p class="modal-meta"></p>
+      <p class="modal-desc"></p>
+      <p class="modal-tag"></p>
+    </div>
+  </div>
+</div>
+
+<!-- SuperChat 特效层 -->
+<div id="sc-layer" aria-hidden="true"></div>
+
+<!-- GSAP CDN 兜底：jsdelivr 加载失败或连接挂起时卸载 BOOT 覆盖层，让静态内容可读。
+     超时检查必须调度在下方阻塞式 <script> 之前——挂起时解析器被卡住，写在其后的内联脚本根本没机会执行 -->
+<script>
+function gsapCdnFallback(){ /* 与 js/main.js 静态降级同一套动作：卸载 BOOT、解锁滚动、显示 HUD */
+  if(window.gsap)return;
+  document.getElementById('boot')&&(document.getElementById('boot').style.display='none');
+  document.body.classList.remove('boot-locked');
+  document.getElementById('live-hud')&&document.getElementById('live-hud').classList.remove('hidden');
+}
+setTimeout(gsapCdnFallback,9000); /* CDN 挂起（TCP 慢/被重置但不断开）时 9 秒强制静态降级；正常加载则 window.gsap 已定义，空跑无害，无需清除 */
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollToPlugin.min.js"></script>
+<script>window.addEventListener('error',function(e){gsapCdnFallback();},{once:true});</script>
+<script src="js/data.js?v=20261027"></script>
+<script src="js/trail.js?v=20260726"></script>
+<script src="js/starburst.js?v=20260726"></script>
+<script src="js/main.js?v=20261027"></script>
+<script>
+/* PWA Service Worker 注册：仅 http(s) 环境；file:// 双击预览与 e2e（file:// 加载）自动跳过。
+   不等 window load：懒加载图片会推迟 load 事件（实测页面停在 interactive），注册本身不阻塞渲染，立即发起 */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  navigator.serviceWorker.register('/sw.js');
+}
+</script>
+</body>
+</html>

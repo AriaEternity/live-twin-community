@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles %}
+{% block title %}{{ '编辑卡组' if deck else '组一套' }} — Live☆Twin 社区{% endblock %}
+
+{% block head %}
+<style>
+/* ── 卡组编辑器布局：桌面左右两栏（左搜索、右卡组），≤900px 上下堆叠 ── */
+.deck-editor { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
+.de-left, .de-right { min-width: 0; }
+
+/* 标题/简介输入区 */
+.deck-meta-fields { display: grid; gap: 10px; margin-bottom: 20px; }
+.deck-meta-fields .form-textarea { min-height: 90px; }
+
+/* 搜索区 */
+.de-search { display: flex; gap: 10px; margin-bottom: 14px; }
+.de-search .form-input { flex: 1; min-width: 0; margin: 0; font-size: 16px; /* ≥16px 防 iOS Safari 聚焦自动放大页面（踩坑 #18） */ }
+/* 条件筛选面板容器（组件本体样式由 js/card_filter.js 注入） */
+.de-filter-slot { margin-bottom: 14px; }
+.de-status { text-align: center; padding: 28px 0; font-size: 13px; opacity: .85; }
+.de-status.error { color: var(--danger); opacity: 1; }
+.de-hint { font-size: 12px; opacity: .75; margin: -6px 0 14px 4px; }
+.de-ban-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.de-ban-status { margin: 0; font-size: 13px; line-height: 1.7; }
+.de-ban-status.error { color: var(--danger); }
+.de-ban-notice [hidden] { display: none; }
+#de-ban-retry { min-height: 44px; }
+#de-save:disabled { opacity: .65; cursor: not-allowed; }
+
+/* 搜索结果网格 */
+.de-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+.de-result {
+  background: rgba(255,255,255,.65); border: 1px solid rgba(21,16,43,.1);
+  border-radius: 12px; padding: 10px;
+}
+.de-result img { width: 100%; height: auto; aspect-ratio: 268/391; border-radius: 8px; display: block; background: #E8E4F0; }
+/* 卡图容器：禁限角标的定位基准 */
+.de-result .dr-img { position: relative; }
+/* 禁限角标：卡图右上角，浮层显式 z-index:2 防被 img 盖住（踩坑 #17），纯装饰不响应点击 */
+.de-result .dr-ban {
+  position: absolute; top: 4px; right: 4px; z-index: 2;
+  min-width: 20px; height: 20px; line-height: 20px; padding: 0 4px; box-sizing: border-box;
+  border-radius: 6px; font-size: 11px; font-weight: 900; text-align: center;
+  pointer-events: none;
+}
+.de-result .dr-ban-0 { background: var(--danger); color: #fff; }        /* 禁：红底白字 */
+.de-result .dr-ban-1 { background: #E8710A; color: #fff; }              /* 限：橙底白字 */
+.de-result .dr-ban-2 { background: #F2C200; color: #15102B; }           /* 准：黄底深字（保对比度） */
+.de-result .dr-name { font-size: 12px; font-weight: 700; margin-top: 6px; line-height: 1.4; }
+/* 加入按钮：主=粉、额=蓝、副=金描边胶囊 */
+.dr-add { display: flex; gap: 6px; margin-top: 8px; }
+.dr-add button {
+  flex: 1; min-height: 34px; border-radius: 999px; font-size: 12px; font-weight: 900;
+  font-family: var(--f-cn); cursor: pointer; background: rgba(255,255,255,.85);
+  transition: transform .2s;
+}
+.dr-add .add-main { border: 1px solid var(--ksk-primary); color: var(--ksk-primary); }
+.dr-add .add-extra { border: 1px solid var(--lil-primary); color: var(--lil-primary); }
+.dr-add .add-side { border: 1px solid var(--warn-ink); color: var(--warn-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .dr-add button:hover { transform: scale(1.06); }
+}
+
+/* 右侧卡组区 */
+.de-right { display: grid; gap: 16px; align-content: start; position: sticky; top: 76px; }
+.de-zone {
+  padding: 14px 16px; border-radius: 14px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+}
+.de-zone-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.de-zone-title { font-size: 14px; font-weight: 900; }
+.de-zone-count { font-size: 12px; font-weight: 700; opacity: .78; }
+.de-zone-count.is-invalid { color: var(--danger); opacity: 1; }
+.de-zone-empty { font-size: 12px; opacity: .7; }
+.de-zone-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.de-thumb { position: relative; border: none; background: none; padding: 0; cursor: pointer; border-radius: 6px; }
+.de-thumb img {
+  width: 100%; height: auto; aspect-ratio: 268/391; display: block;
+  background: #E8E4F0; border-radius: 6px;
+  transition: transform .2s, opacity .2s;
+}
+/* 悬停放大 + 微透明，提示点击可移除一张（仅鼠标设备） */
+@media (hover: hover) and (pointer: fine) {
+  .de-thumb:hover img { transform: scale(1.05); opacity: .8; }
+}
+/* ×N 角标：浮层显式 z-index:2 防被 img 盖住（踩坑 #17） */
+.de-thumb .dt-x {
+  position: absolute; right: 2px; bottom: 2px; z-index: 2;
+  font-size: 10px; font-weight: 900; color: #fff;
+  background: rgba(21,16,43,.78); border-radius: 5px; padding: 1px 4px;
+  pointer-events: none;
+}
+
+/* 保存区 */
+.de-savebar { margin-top: 20px; display: grid; gap: 10px; }
+.de-errors {
+  padding: 12px 16px; border-radius: 10px; font-size: 13px; line-height: 1.7;
+  color: var(--danger); background: rgba(194,24,69,.08); border: 1px solid rgba(194,24,69,.35);
+}
+#de-save { justify-self: start; }
+
+/* ≤900px 上下堆叠：卡组区取消 sticky，回归文档流 */
+@media (max-width: 900px) {
+  .deck-editor { grid-template-columns: 1fr; }
+  .de-right { position: static; }
+}
+@media (max-width: 600px) {
+  /* 移动端触控目标 ≥44px */
+  .dr-add button { min-height: 44px; }
+  .de-thumb { min-height: 44px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container container--wide">
+  <a class="back-link" href="{{ url_for('decks.list') }}">‹ 返回卡组广场</a>
+  <div class="page-header">
+    <h1>{{ '✎ 编辑卡组' if deck else '🎴 组一套' }}</h1>
+    <p>左侧搜卡加入，右侧点击缩略图移除一张 · 主卡组 40-60 · 额外/副各 ≤15 · 同名卡按 OCG 禁限卡表（未收录 ≤3）</p>
+  </div>
+
+  <div class="de-ban-notice" role="status" aria-live="polite" aria-atomic="true">
+    <p id="de-ban-status" class="de-ban-status">正在加载 OCG 禁限规则，规则就绪后可保存卡组…</p>
+    <button class="btn btn-secondary" id="de-ban-retry" type="button" hidden>重试规则加载</button>
+  </div>
+
+  <!-- 隐藏表单：保存时由 JS 校验并把三区状态序列化进 main/extra/side_json，再 fetch POST -->
+  <form id="deck-form" method="post"
+        action="{{ url_for('decks.edit', deck_id=deck.id) if deck else url_for('decks.new') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="main_json" id="f-main" value="">
+    <input type="hidden" name="extra_json" id="f-extra" value="">
+    <input type="hidden" name="side_json" id="f-side" value="">
+    <div class="deck-meta-fields">
+      <input class="form-input" id="f-title" name="title" type="text" maxlength="60"
+             placeholder="卡组标题（必填，60 字以内）" aria-label="卡组标题"
+             value="{{ form.title if form is defined else (deck.title if deck else '') }}">
+      <textarea class="form-textarea" id="f-desc" name="description" maxlength="2000"
+                placeholder="简介：构筑思路、关键 combo、副卡组用法……（2000 字以内，可留空）"
+                aria-label="卡组简介">{{ form.description if form is defined else (deck.description if deck else '') }}</textarea>
+    </div>
+  </form>
+
+  <div class="deck-editor">
+    <!-- 左栏：搜卡 -->
+    <section class="de-left" aria-label="搜索卡片">
+      <form class="de-search" id="de-search-form">
+        <input class="form-input" id="de-q" type="search" maxlength="64" aria-label="搜索卡片"
+               placeholder="输入卡名关键词或卡号，如：双子 / Ki-sikil / 36326160">
+        <button class="btn btn-primary" type="submit">搜卡</button>
+      </form>
+      <!-- 条件筛选面板（js/card_filter.js 渲染）：不输入卡名时按条件翻卡，可换页 -->
+      <div id="de-filter" class="de-filter-slot"></div>
+      <p class="de-hint">点卡图下方的「主 / 额 / 副」加入对应分区。规则就绪后校验投入上限，同卡异画合计计数。</p>
+      <div id="de-status" class="de-status" hidden></div>
+      <div class="de-results" id="de-results"></div>
+      <!-- filter 端点换页控件（样式由 card_filter.js 注入的 .cf-pager 提供） -->
+      <div id="de-pager" class="cf-pager" hidden></div>
+    </section>
+
+    <!-- 右栏：三个卡组分区（由 js/deck_editor.js 渲染） -->
+    <section class="de-right" id="de-zones" aria-label="当前卡组"></section>
+  </div>
+
+  <div class="de-savebar">
+    <div id="de-errors" class="de-errors" hidden></div>
+    <button class="btn btn-primary" id="de-save" type="button" data-no-lock disabled>保存卡组</button>
+  </div>
+</div>
+
+<script>
+/* 初始卡组状态（后端注入）：{'main':[...],'extra':[...],'side':[...]}，条目 {id, name, types}，每张卡一个条目（同名多张即多条） */
+window.__DECK_INITIAL__ = {{ initial|tojson }};
+/* 保存成功后的回退跳转：fetch redirect:'manual' 下 302 变 opaqueredirect 拿不到 Location（踩坑 #29），
+   编辑场景原地刷新即可看到最新数据，新建场景回卡组广场 */
+window.__DECK_IS_EDIT__ = {{ 'true' if deck else 'false' }};
+window.__DECK_FALLBACK__ = {{ url_for('decks.list')|tojson }};
+</script>
+<script src="/js/card_filter.js?v=20260729"></script>
+<script src="/js/deck_editor.js?v=20261028"></script>
+{% endblock %}

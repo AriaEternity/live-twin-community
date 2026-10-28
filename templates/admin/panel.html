@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}管理面板 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>管理面板</h1>
+    <p>社区运营总览</p>
+  </div>
+
+  <div class="admin-nav">
+    <a href="{{ url_for('admin.panel') }}" class="active">总览</a>
+    <a href="{{ url_for('admin.users') }}">用户管理</a>
+    <a href="{{ url_for('admin.threads') }}">帖子管理</a>
+    <a href="{{ url_for('admin.announcements') }}">公告管理</a>
+    <a href="{{ url_for('admin.logs') }}">操作日志</a>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><b>{{ stats.users }}</b><span>注册用户</span></div>
+    <div class="stat-card"><b>{{ stats.threads }}</b><span>主题帖</span></div>
+    <div class="stat-card"><b>{{ stats.posts }}</b><span>回复（含首帖）</span></div>
+    <div class="stat-card"><b>{{ stats.likes }}</b><span>点赞</span></div>
+  </div>
+
+  <h2 style="font-size:18px;font-weight:900;margin-bottom:12px;">最新帖子</h2>
+  <table class="admin-table">
+    <tr><th>标题</th><th>板块</th><th>作者</th><th>时间</th><th>浏览/回复</th></tr>
+    {% for t in recent %}
+    <tr>
+      <td><a href="{{ url_for('forum.thread', thread_id=t.id) }}">{{ t.title }}</a></td>
+      <td>{{ t.board.name }}</td>
+      <td><span class="name-truncate" title="{{ t.author.display_name }}">{{ t.author.display_name }}</span></td>
+      <td>{{ t.created_at|bjtime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ t.view_count }} / {{ t.reply_count }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" style="text-align:center;opacity:.78;padding:24px;">☆ 暂无记录</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

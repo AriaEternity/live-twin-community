@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}{{ board.name }} — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container container--wide">
+  <a class="back-link" href="{{ url_for('forum.index') }}">‹ 返回板块列表</a>
+  <div class="page-header">
+    <h1>{{ board.name }}</h1>
+    <p>{{ board.description }}</p>
+  </div>
+
+  <!-- 论坛搜索入口（GET，关键词至少 2 字符） -->
+  <form class="forum-search" method="get" action="{{ url_for('forum.search') }}">
+    <input class="form-input" type="search" name="q" minlength="2" maxlength="120" required
+           placeholder="搜索帖子标题、正文或回复…" aria-label="搜索论坛">
+    <button class="btn btn-primary" type="submit">搜索</button>
+  </form>
+
+  <div class="forum-layout">
+    <div class="forum-main">
+      {% if current_user.is_authenticated %}
+      <div style="margin-bottom:16px;">
+        <a href="{{ url_for('forum.new_thread', slug=board.slug) }}" class="btn btn-primary">+ 发射新帖</a>
+      </div>
+      {% endif %}
+
+      <!-- 排序标签：当前项高亮；置顶帖恒在最前 -->
+      <div class="sort-tabs">
+        <a class="sort-tab {{ 'active' if sort == 'active' }}" href="{{ url_for('forum.board', slug=board.slug, sort='active') }}">最近回复</a>
+        <a class="sort-tab {{ 'active' if sort == 'new' }}" href="{{ url_for('forum.board', slug=board.slug, sort='new') }}">最新发帖</a>
+        <a class="sort-tab {{ 'active' if sort == 'replies' }}" href="{{ url_for('forum.board', slug=board.slug, sort='replies') }}">回复最多</a>
+        <a class="sort-tab {{ 'active' if sort == 'views' }}" href="{{ url_for('forum.board', slug=board.slug, sort='views') }}">浏览最多</a>
+      </div>
+
+      <div class="thread-list">
+        {% for t in threads.items %}
+        <a href="{{ url_for('forum.thread', thread_id=t.id) }}" class="thread-row">
+          <span class="tr-replies">{{ t.reply_count }}</span>
+          <span class="tr-title">
+            {% if t.is_pinned %}<span class="pin-badge">置顶</span>{% endif %}
+            <span class="tr-text" title="{{ t.title }}">{{ t.title }}</span>
+          </span>
+          <span class="tr-meta"><span class="name-truncate-sm" title="{{ t.author.display_name }}">{{ t.author.display_name }}</span> · {{ t.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+        </a>
+        {% else %}
+        {# 空态：卡背引导；已登录附「发射新帖」主按钮 #}
+        {% if current_user.is_authenticated %}
+        {{ empty_state('弹幕池还是空的', '抢下沙发，让双子看到你的帖子！',
+                       link_text='+ 发射新帖', link_url=url_for('forum.new_thread', slug=board.slug)) }}
+        {% else %}
+        {{ empty_state('弹幕池还是空的', '抢下沙发，让双子看到你的帖子！') }}
+        {% endif %}
+        {% endfor %}
+      </div>
+
+      <!-- 分页（保留排序参数 sort） -->
+      {{ pager(threads, 'forum.board', slug=board.slug, sort=sort) }}
+    </div>
+
+    <!-- 侧栏：≥1280px 双栏显示，窄屏塌缩为单列堆叠到主列下方（公告卡仅首页有数据，板块页不放） -->
+    <aside class="forum-side">
+      {% if current_user.is_authenticated %}
+      <a class="btn btn-primary side-cta" href="{{ url_for('forum.new_thread', slug=board.slug) }}">+ 发射新帖</a>
+      {% else %}
+      <a class="btn btn-primary side-cta" href="{{ url_for('auth.login') }}">登录后发射新帖</a>
+      {% endif %}
+      <div class="side-card side-rules">
+        <span class="side-card-label">☆ 频道公约</span>
+        <ol class="side-rules-list">
+          <li>弹幕礼仪：打 call 随意，人身攻击会被里侧除外哦☆</li>
+          <li>怪盗身份是频道最高机密——剧透者，璃拉亲自送你下场</li>
+          <li>广告/倒爷移步异次元，本频道只签收好评和小钱钱</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

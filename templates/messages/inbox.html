@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}私信 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <a class="back-link" href="{{ url_for('forum.index') }}">‹ 返回论坛</a>
+  <div class="page-header">
+    <h1>私信</h1>
+  </div>
+
+  <div class="conv-list">
+    {% for c in conversations %}
+    <a class="conv-row" href="{{ url_for('messages.conversation', user_id=c.other.id) }}">
+      {# 头像：有上传头像用 img（带宽高防布局漂移），否则按 id 配色取昵称首字符 #}
+      {% if c.other.avatar_url %}
+      <img class="avatar-img conv-avatar" src="{{ c.other.avatar_url }}" alt="" width="44" height="44">
+      {% else %}
+      <div class="avatar conv-avatar" style="background:{{ ['#EE5BA6','#4A6FD0','#7CE85A','#B02A6E'][c.other.id % 4] }};">{{ c.other.display_name[0] }}</div>
+      {% endif %}
+      <span class="conv-main">
+        <span class="conv-top">
+          <span class="name-truncate conv-name" title="{{ c.other.display_name }}">{{ c.other.display_name }}</span>
+          <span class="conv-time">{{ c.last.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+        </span>
+        <span class="conv-snippet">{# 图文都有仍显示文字摘要；纯图消息显示占位文案 #}{% if c.last.content %}{{ c.last.content[:80] }}{% if c.last.content|length > 80 %}…{% endif %}{% elif c.last.images %}[图片]{% endif %}</span>
+      </span>
+      {# 未读数徽章：复用 notif-badge 基础样式，本页改为静态定位 #}
+      {% if c.unread > 0 %}
+      <span class="conv-unread"><span class="notif-badge">{{ '99+' if c.unread > 99 else c.unread }}</span></span>
+      {% endif %}
+    </a>
+    {% else %}
+    {{ empty_state('还没有私信', variant='icon', icon='✉') }}
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+/* 私信会话列表 */
+.conv-list { margin-top: 8px; }
+.conv-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; margin-bottom: 8px; border-radius: 12px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+  color: var(--ink); text-decoration: none;
+  transition: transform var(--dur-2, .2s), border-color var(--dur-2, .2s), box-shadow var(--dur-2, .2s);
+}
+/* 浮起仅鼠标设备生效，防触屏 sticky hover（踩坑 #19） */
+@media (hover: hover) and (pointer: fine) {
+  .conv-row:hover {
+    border-color: rgba(238,91,166,.5);
+    box-shadow: 0 4px 12px rgba(238,91,166,.15);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+}
+.conv-avatar { width: 44px; height: 44px; font-size: 17px; flex-shrink: 0; }
+.conv-main { flex: 1; min-width: 0; }
+.conv-top { display: flex; align-items: baseline; gap: 10px; }
+.conv-name { font-weight: 900; font-size: 14px; max-width: 200px; }
+.conv-time { font-size: 11px; opacity: .7; white-space: nowrap; margin-left: auto; }
+.conv-snippet {
+  display: block; font-size: 12px; opacity: .75; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 未读徽章容器：把 notif-badge 的绝对定位改回静态，嵌入行尾 */
+.conv-unread { flex-shrink: 0; display: inline-flex; }
+.conv-unread .notif-badge { position: static; box-shadow: none; }
+
+@media (max-width: 600px) {
+  .conv-row { padding: 12px; }
+  .conv-avatar { width: 38px; height: 38px; font-size: 15px; }
+  .conv-name { max-width: 130px; }
+}
+</style>
+{% endblock %}

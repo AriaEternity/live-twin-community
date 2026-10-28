@@ -1,0 +1,52 @@
+{
+  "packs": [
+    {
+      "id": "sample",
+      "name": "示例包",
+      "stickers": [
+        {
+          "id": "star",
+          "name": "星星",
+          "file": "sample/star.png",
+          "w": 128,
+          "h": 128
+        },
+        {
+          "id": "heart",
+          "name": "心心",
+          "file": "sample/heart.png",
+          "w": 128,
+          "h": 128
+        },
+        {
+          "id": "ok",
+          "name": "OK",
+          "file": "sample/ok.png",
+          "w": 128,
+          "h": 128
+        },
+        {
+          "id": "cry",
+          "name": "哭哭",
+          "file": "sample/cry.png",
+          "w": 128,
+          "h": 128
+        },
+        {
+          "id": "twirl",
+          "name": "转圈圈",
+          "file": "sample/twirl.gif",
+          "w": 128,
+          "h": 128
+        },
+        {
+          "id": "bounce",
+          "name": "蹦蹦",
+          "file": "sample/bounce.gif",
+          "w": 128,
+          "h": 128
+        }
+      ]
+    }
+  ]
+}

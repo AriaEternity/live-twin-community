@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager %}
+{% block title %}操作日志 — Live☆Twin 社区{% endblock %}
+
+{% set action_labels = {
+  'pin': '置顶', 'unpin': '取消置顶', 'lock': '锁定', 'unlock': '解锁',
+  'delete_thread': '删除主题', 'delete_post': '删除回复',
+  'grant_admin': '授予管理', 'revoke_admin': '取消管理', 'delete_user': '删除用户'
+} %}
+{% set type_labels = {'thread': '主题', 'post': '回复', 'user': '用户'} %}
+{% set danger_actions = ('delete_thread', 'delete_post', 'delete_user') %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <div class="page-header">
+    <h1>操作日志</h1>
+    <p>管理员操作留痕（最新在前，每页 {{ logs.per_page }} 条）</p>
+  </div>
+
+  <div class="admin-nav">
+    <a href="{{ url_for('admin.panel') }}">总览</a>
+    <a href="{{ url_for('admin.users') }}">用户管理</a>
+    <a href="{{ url_for('admin.threads') }}">帖子管理</a>
+    <a href="{{ url_for('admin.announcements') }}">公告管理</a>
+    <a href="{{ url_for('admin.logs') }}" class="active">操作日志</a>
+  </div>
+
+  <!-- 操作类型筛选：选中即自动提交（GET，翻页时保留 action 参数） -->
+  <form method="get" action="{{ url_for('admin.logs') }}" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <label for="log-action-filter" style="font-size:13px;font-weight:700;opacity:.8;">按操作筛选</label>
+    <select id="log-action-filter" name="action" class="form-input" style="width:auto;padding:8px 12px;font-size:13px;"
+            onchange="this.form.submit()">
+      <option value=""{% if not current_action %} selected{% endif %}>全部操作</option>
+      {% for a in actions %}
+      <option value="{{ a }}"{% if current_action == a %} selected{% endif %}>{{ action_labels.get(a, a) }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button class="admin-btn" type="submit">筛选</button></noscript>
+  </form>
+
+  <!-- 窄屏下表格容器可横向滚动 -->
+  <div class="table-wrap">
+  <table class="admin-table">
+    <tr><th>时间</th><th>管理员</th><th>操作</th><th>对象</th><th>摘要</th></tr>
+    {% for log in logs.items %}
+    <tr>
+      <td style="white-space:nowrap;">{{ log.created_at|bjtime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        {% if log.admin %}
+        <span class="name-truncate" title="{{ log.admin.display_name }}">{{ log.admin.display_name }}</span>
+        {% else %}
+        <span style="opacity:.6;">已注销</span>
+        {% endif %}
+      </td>
+      <td><span class="log-action{% if log.action in danger_actions %} log-action--danger{% endif %}">{{ action_labels.get(log.action, log.action) }}</span></td>
+      <td style="white-space:nowrap;">{{ type_labels.get(log.target_type, log.target_type) }}{% if log.target_id is not none %} #{{ log.target_id }}{% endif %}</td>
+      <td style="word-break:break-word;overflow-wrap:anywhere;min-width:160px;">{{ log.detail }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" style="text-align:center;opacity:.78;padding:24px;">☆ 暂无记录</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <!-- 分页（保留筛选参数 action） -->
+  {{ pager(logs, 'admin.logs', action=current_action) }}
+</div>
+{% endblock %}

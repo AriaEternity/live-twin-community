@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}通知 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <div class="page-header" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div>
+      <h1>通知</h1>
+      <p>有人回复你或在内容里 @ 你时会出现在这里</p>
+    </div>
+    {% if unread_notification_count %}
+    <form method="post" action="{{ url_for('forum.mark_notifications_read') }}" style="margin:0;">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-secondary" type="submit">全部标为已读</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {# 未读私信横幅：放在通知列表之外，空态页也要显示；「全部标为已读」只清通知，不动私信 #}
+  {% if unread_message_count %}
+  <a class="notification-item unread msg-banner" href="{{ url_for('messages.inbox') }}">
+    ✉️ 有 {{ unread_message_count }} 条未读私信，点这里查看
+  </a>
+  {% endif %}
+
+  {% if notifications.items %}
+  <div class="notification-list">
+    {% for n in notifications.items %}
+    <a class="notification-item {{ 'unread' if not n.is_read }}"
+       href="{{ url_for('forum.notification_go', nid=n.id) }}">
+      <div class="notif-meta">
+        <span class="notif-actor name-truncate" title="{{ n.actor.display_name }}">{{ n.actor.display_name }}</span>
+        <span class="notif-time">{{ n.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+        {% if not n.is_read %}<span class="notif-dot"></span>{% endif %}
+      </div>
+      <div class="notif-title">
+        {% if n.kind == 'mention' %}
+          在《{{ n.thread.title }}》中提到了你
+        {% elif n.post.parent_post_id %}
+          回复了你在《{{ n.thread.title }}》中的楼层
+        {% else %}
+          回复了你的主题《{{ n.thread.title }}》
+        {% endif %}
+      </div>
+      <div class="notif-snippet">{{ n.post.content[:120] }}{% if n.post.content|length > 120 %}…{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {{ pager(notifications, 'forum.notifications') }}
+
+  {% else %}
+  {{ empty_state('直播间静悄悄', '有人回复或 @ 你时，铃铛会响起来', variant='icon', icon='🔔') }}
+  {% endif %}
+</div>
+
+<style>
+.notification-list { display: grid; gap: 10px; }
+/* 未读私信横幅：复用 notification-item.unread 体系，仅微调间距与强调 */
+.msg-banner {
+  margin-bottom: 14px; font-weight: 700; font-size: 14px;
+  text-align: center; color: var(--ksk-primary);
+}
+.notification-item {
+  display: block; padding: 16px 18px; border-radius: 12px;
+  background: rgba(255,255,255,.6); border: 1px solid rgba(21,16,43,.08);
+  transition: background .2s, border-color .2s, transform .2s;
+}
+.notification-item:hover {
+  background: rgba(255,255,255,.9); border-color: rgba(238,91,166,.35);
+  transform: translateY(-1px); text-decoration: none;
+}
+.notification-item.unread { background: rgba(255,255,255,.85); border-color: rgba(74,111,208,.25); }
+.notif-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-bottom: 6px; }
+.notif-actor { font-weight: 900; color: var(--ksk-primary); }
+.notif-time { opacity: .65; }
+.notif-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #ff3b5c;
+  box-shadow: 0 0 8px rgba(255,59,92,.6);
+}
+.notif-title { font-weight: 700; font-size: 14px; color: var(--ink); margin-bottom: 6px; }
+.notif-snippet { font-size: 13px; opacity: .75; color: var(--ink); line-height: 1.6; }
+</style>
+{% endblock %}

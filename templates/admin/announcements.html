@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}公告管理 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>公告管理</h1>
+    <p>发布后会向所有访客在论坛首页弹窗，直到对方点「我已知晓」</p>
+  </div>
+
+  <div class="admin-nav">
+    <a href="{{ url_for('admin.panel') }}">总览</a>
+    <a href="{{ url_for('admin.users') }}">用户管理</a>
+    <a href="{{ url_for('admin.threads') }}">帖子管理</a>
+    <a href="{{ url_for('admin.announcements') }}" class="active">公告管理</a>
+    <a href="{{ url_for('admin.logs') }}">操作日志</a>
+  </div>
+
+  <div class="form-card" style="margin-bottom:24px;">
+    <h2>发布新公告</h2>
+    <form method="post">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="ann-title">标题（最多 {{ max_title }} 字）</label>
+        <input class="form-input" type="text" name="title" id="ann-title" required
+               minlength="2" maxlength="{{ max_title }}" value="{{ request.form.get('title', '') }}">
+      </div>
+      <div class="form-group">
+        <label for="ann-content">内容（最多 {{ max_content }} 字，纯文本，换行会保留）</label>
+        <textarea class="form-input form-textarea" name="content" id="ann-content" required
+                  minlength="2" maxlength="{{ max_content }}" rows="6">{{ request.form.get('content', '') }}</textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">发布公告</button>
+    </form>
+  </div>
+
+  <h2 style="font-size:18px;font-weight:900;margin-bottom:12px;">历史公告</h2>
+  <table class="admin-table">
+    <tr><th>ID</th><th>标题</th><th>发布时间</th><th>操作</th></tr>
+    {% for a in announcements %}
+    <tr>
+      <td>{{ a.id }}</td>
+      <td>{{ a.title }}</td>
+      <td>{{ a.created_at|bjtime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin.delete_announcement', ann_id=a.id) }}"
+              onsubmit="return confirm('确认删除这条公告？');" style="margin:0;">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn danger" type="submit">删除</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" style="text-align:center;opacity:.78;padding:24px;">☆ 暂无记录</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

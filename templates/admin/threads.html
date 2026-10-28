@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager %}
+{% block title %}帖子管理 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <div class="page-header">
+    <h1>帖子管理</h1>
+    <p>全部主题帖（置顶优先，按时间倒序）</p>
+  </div>
+
+  <div class="admin-nav">
+    <a href="{{ url_for('admin.panel') }}">总览</a>
+    <a href="{{ url_for('admin.users') }}">用户管理</a>
+    <a href="{{ url_for('admin.threads') }}" class="active">帖子管理</a>
+    <a href="{{ url_for('admin.announcements') }}">公告管理</a>
+    <a href="{{ url_for('admin.logs') }}">操作日志</a>
+  </div>
+
+  <!-- 窄屏下表格容器可横向滚动 -->
+  <div class="table-wrap">
+  <table class="admin-table">
+    <tr><th>标题</th><th>板块</th><th>作者</th><th>时间</th><th>状态</th><th>操作</th></tr>
+    {% for t in threads.items %}
+    <tr>
+      <td><a href="{{ url_for('forum.thread', thread_id=t.id) }}">{{ t.title }}</a></td>
+      <td>{{ t.board.name }}</td>
+      <td><span class="name-truncate-lg" title="{{ t.author.display_name }}">{{ t.author.display_name }}</span><br><span style="font-size:11px;opacity:.6;">{{ t.author.username }}</span></td>
+      <td>{{ t.created_at|bjtime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        {% if t.is_pinned %}<span class="role-badge role-admin">置顶</span>{% endif %}
+        {% if t.is_locked %}<span class="role-badge" style="background:rgba(255,59,92,.15);color:#c21845;">锁定</span>{% endif %}
+      </td>
+      <td style="white-space:nowrap;">
+        <form method="post" action="{{ url_for('admin.toggle_pin', thread_id=t.id, page=threads.page) }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn" type="submit">{{ '取消置顶' if t.is_pinned else '置顶' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.toggle_lock', thread_id=t.id, page=threads.page) }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn" type="submit">{{ '解锁' if t.is_locked else '锁定' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.delete_thread', thread_id=t.id, page=threads.page) }}"
+              onsubmit="return confirm('确认把这条帖子里侧除外？此操作不可通常召唤回场（不可恢复）');">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn danger" type="submit">删除</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;opacity:.78;padding:24px;">☆ 暂无记录</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  {{ pager(threads, 'admin.threads') }}
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}登录 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- 秘密验证语卡图风：左侧卡图面板 + 深 navy 霓虹窗体 -->
+  <div class="auth-window">
+    <div class="auth-art" aria-hidden="true">
+      <img src="/cards/cropped/61976639.jpg" alt="" loading="lazy">
+    </div>
+    <div class="auth-panel">
+    <div class="auth-titlebar">
+      <span class="auth-dots"><i></i><i></i><i></i></span>
+      <span class="dot">SECRET PASSWORD</span>
+    </div>
+    <div class="auth-body">
+      <h2>登录</h2>
+      <p class="auth-note">验证通过，信号接入☆</p>
+      <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label for="login-username">用户名</label>
+          <input class="form-input" type="text" name="username" id="login-username" required autocomplete="username" value="{{ request.form.get('username', '') }}">
+        </div>
+        <div class="form-group">
+          <label for="login-password">密码</label>
+          <input class="form-input" type="password" name="password" id="login-password" required autocomplete="current-password" placeholder="请输入密码">
+          <p style="text-align:right;font-size:12px;margin-top:6px;"><a href="{{ url_for('auth.forgot') }}">忘记密码？</a></p>
+        </div>
+        <div class="form-group" style="display:flex;align-items:center;gap:6px;font-size:13px;">
+          <input type="checkbox" name="remember" id="remember">
+          <label for="remember" style="margin:0;cursor:pointer;">记住我</label>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%;margin-bottom:14px;">▶ 接入直播间</button>
+        <p class="auth-foot">
+          还没有账号？<a href="{{ url_for('auth.register') }}">立即注册</a>
+        </p>
+      </form>
+    </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

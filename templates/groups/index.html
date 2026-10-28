@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles %}
+{% block title %}群索引 — Live☆Twin 社区{% endblock %}
+
+{% block head %}
+<style>
+  /* tab 切换胶囊：激活态走 .btn-primary 同款粉蓝渐变 */
+  .group-tabs { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .group-tab {
+    flex: 1; max-width: 220px; min-width: 170px; height: 44px;
+    border-radius: 999px; border: 1px solid rgba(21,16,43,.18);
+    background: rgba(255,255,255,.78); color: var(--ink);
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: border-color var(--dur-2, .2s), box-shadow var(--dur-2, .2s), transform var(--dur-2, .2s), color var(--dur-2, .2s), background var(--dur-2, .2s);
+  }
+  .group-tab.is-active {
+    background: linear-gradient(90deg, var(--ksk-primary), var(--lil-primary));
+    border-color: transparent; color: #fff;
+    box-shadow: 0 6px 16px rgba(238,91,166,.3);
+  }
+  .group-tab-external {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    text-decoration: none;
+  }
+  .group-tab-external::after { content: '↗'; font-size: 14px; }
+  /* 浮起仅鼠标设备生效，防触屏 sticky hover（踩坑 #19） */
+  @media (hover: hover) and (pointer: fine) {
+    .group-tab:not(.is-active):hover { border-color: rgba(238,91,166,.5); transform: translateY(-1px); }
+  }
+
+  .group-search { margin-bottom: 6px; }
+  .group-search .form-input { margin: 0; }
+
+  .group-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+  .group-action {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 38px; padding: 8px 14px; border-radius: 8px;
+    border: 1px solid rgba(21,16,43,.16); background: rgba(255,255,255,.72);
+    color: var(--ink); font-size: 13px; font-weight: 700; text-decoration: none;
+  }
+  .group-action-primary { background: rgba(238,91,166,.12); border-color: rgba(238,91,166,.3); color: var(--ksk-deep); }
+  .group-action::after { content: '↗'; font-size: 13px; }
+  @media (hover: hover) and (pointer: fine) {
+    .group-action:hover { border-color: rgba(238,91,166,.5); transform: translateY(-1px); }
+  }
+  .group-panel[hidden] { display: none; }
+  .college-card { max-width: 680px; }
+  .college-card .group-actions { margin: 18px 0 0; }
+
+  /* 结果计数：屏幕阅读器可感知（aria-live） */
+  .group-count { font-size: 12px; opacity: .75; margin: 0 0 14px 4px; }
+  .group-pagination-wrap { margin: 22px 0 6px; }
+  .group-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
+  .group-page {
+    min-width: 34px; height: 34px; padding: 0 9px; border: 1px solid rgba(21,16,43,.15);
+    border-radius: 8px; background: rgba(255,255,255,.72); color: var(--ink);
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .group-page.is-current { background: var(--ksk-primary); border-color: var(--ksk-primary); color: #fff; }
+  .group-page:disabled { opacity: .4; cursor: not-allowed; }
+  .group-page-gap { min-width: 24px; color: var(--ink-75); text-align: center; }
+  .group-page-jump { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; color: var(--ink-75); font-size: 13px; }
+  .group-page-input {
+    width: 64px; height: 36px; padding: 5px 8px; border: 1px solid rgba(21,16,43,.18);
+    border-radius: 8px; background: rgba(255,255,255,.82); color: var(--ink);
+    font: inherit; font-size: 16px; text-align: center;
+  }
+  .group-page-go {
+    height: 36px; padding: 0 13px; border: 1px solid rgba(238,91,166,.32);
+    border-radius: 8px; background: rgba(238,91,166,.12); color: var(--ksk-deep);
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .group-page:not(:disabled):not(.is-current):hover { border-color: rgba(238,91,166,.5); color: var(--ksk-deep); }
+  }
+
+  /* 群卡片网格 */
+  .group-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .group-card {
+    background: rgba(255,255,255,.65); border: 1px solid rgba(21,16,43,.1);
+    border-radius: 14px; padding: 16px;
+    transition: background var(--dur-2, .2s), border-color var(--dur-2, .2s), transform var(--dur-2, .2s), box-shadow var(--dur-2, .2s);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .group-card:hover {
+      background: rgba(255,255,255,.9); border-color: rgba(238,91,166,.4);
+      transform: translateY(-3px); box-shadow: 0 8px 20px rgba(238,91,166,.15);
+    }
+  }
+  .gc-name { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.4; word-break: break-all; }
+  .gc-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .gc-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgba(238,91,166,.16); color: var(--ksk-deep); }
+  .gc-desc { font-size: 13px; line-height: 1.7; color: var(--ink-75); margin: 10px 0 0; word-break: break-word; }
+  .gc-foot { margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(21,16,43,.15); }
+  /* 群号按钮：可点击复制，蓝字提示可交互 */
+  .gc-qid {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 700; color: var(--lil-primary);
+    background: none; border: none; padding: 0; cursor: pointer; font-family: inherit;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .gc-qid:hover { text-decoration: underline; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <div class="page-header">
+    <h1>👥 群索引</h1>
+    <p>卡组群在本站索引，高校群由飞书实时维护，找同好进群一起打牌☆</p>
+  </div>
+
+  <div class="group-tabs" role="tablist" aria-label="群索引分类">
+    <button class="group-tab is-active" id="tab-deck" data-tab="deck" role="tab" aria-selected="true">卡组群</button>
+    <button class="group-tab" id="tab-college" data-tab="college" role="tab" aria-selected="false">高校群</button>
+  </div>
+
+  <section class="group-panel" id="panel-deck" role="tabpanel" aria-labelledby="tab-deck">
+    <div class="group-search">
+      <input class="form-input" id="group-q" type="search" maxlength="64" aria-label="搜索卡组群"
+             placeholder="搜索群名 / 群号 / 简介 / 标签">
+    </div>
+    <p class="group-count" id="group-count" aria-live="polite"></p>
+    <div class="group-list" id="group-list"></div>
+    <div id="group-empty" hidden></div>
+    <div class="group-pagination-wrap" id="group-pagination-wrap">
+      <nav class="group-pagination" id="group-pagination" aria-label="卡组群分页"></nav>
+      <div class="group-page-jump" id="group-page-jump">
+        <label for="group-page-input">跳至第</label>
+        <input class="group-page-input" id="group-page-input" type="number" min="1" step="1" inputmode="numeric" aria-label="要跳转的页码">
+        <span>页</span>
+        <button class="group-page-go" id="group-page-go" type="button">前往</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="group-panel college-card" id="panel-college" role="tabpanel" aria-labelledby="tab-college" hidden>
+    <div class="group-card">
+      <div class="gc-name">高校群</div>
+      <p class="gc-desc">公开版本未配置高校群目录。部署者可自行接入合成样例或已获准公开的数据。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var GROUPS = {
+    deck: {{ deck_groups | tojson }}
+  };
+  var TAB_LABEL = { deck: '卡组群' };
+  var currentTab = 'deck';
+  var currentPage = 1;
+  var PAGE_SIZE = 20;
+
+  var listEl = document.getElementById('group-list');
+  var emptyEl = document.getElementById('group-empty');
+  var countEl = document.getElementById('group-count');
+  var input = document.getElementById('group-q');
+  var paginationEl = document.getElementById('group-pagination');
+  var paginationWrap = document.getElementById('group-pagination-wrap');
+  var pageJumpEl = document.getElementById('group-page-jump');
+  var pageInput = document.getElementById('group-page-input');
+  var pageGo = document.getElementById('group-page-go');
+  var tabs = document.querySelectorAll('.group-tab');
+  var panels = { deck: document.getElementById('panel-deck'), college: document.getElementById('panel-college') };
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* 关键词匹配：群名 / 群号 / 简介 / 标签，忽略大小写 */
+  function match(g, q) {
+    var hay = [g.name, g.id, g.desc].concat(g.tags || []).join(' ').toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function tagBadges(tags) {
+    if (!tags || !tags.length) return '';
+    return '<div class="gc-tags">' + tags.map(function (t) {
+      return '<span class="gc-tag">' + esc(t) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function card(g) {
+    return '<div class="group-card">' +
+      '<div class="gc-name">' + esc(g.name) + '</div>' +
+      tagBadges(g.tags) +
+      (g.desc ? '<p class="gc-desc">' + esc(g.desc) + '</p>' : '') +
+      '<div class="gc-foot"><button class="gc-qid" type="button" data-qid="' + esc(g.id) + '" title="点击复制群号">群号：' + esc(g.id) + '（点击复制）</button></div>' +
+    '</div>';
+  }
+
+  function render() {
+    var rawQ = input.value.trim();
+    var q = rawQ.toLowerCase();
+    var matched = GROUPS[currentTab].filter(function (g) { return match(g, q); });
+    var totalPages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    var start = (currentPage - 1) * PAGE_SIZE;
+    var list = matched.slice(start, start + PAGE_SIZE);
+    var range = matched.length ? (start + 1) + '–' + Math.min(start + PAGE_SIZE, matched.length) + '，' : '';
+    countEl.textContent = '共 ' + matched.length + ' 个' + TAB_LABEL[currentTab] + (matched.length ? '（显示 ' + range + '第 ' + currentPage + '/' + totalPages + ' 页）' : '') + (rawQ ? '（匹配「' + rawQ + '」）' : '');
+    if (!matched.length) {
+      listEl.innerHTML = '';
+      emptyEl.hidden = false;
+      paginationWrap.hidden = true;
+      emptyEl.innerHTML = rawQ
+        ? '<div class="empty-state"><div class="empty-icon" aria-hidden="true">🔍</div><p class="empty-title">没有找到相关群</p><p class="empty-desc">换个关键词试试，或打开高校群搜索</p></div>'
+        : '<div class="empty-state"><div class="empty-icon" aria-hidden="true">👥</div><p class="empty-title">' + TAB_LABEL[currentTab] + '还没有群</p><p class="empty-desc">数据整理中，稍后上线</p></div>';
+      return;
+    }
+    emptyEl.hidden = true;
+    listEl.innerHTML = list.map(card).join('');
+    renderPagination(totalPages);
+  }
+
+  function renderPagination(totalPages) {
+    paginationWrap.hidden = totalPages <= 1;
+    if (totalPages <= 1) { paginationEl.innerHTML = ''; return; }
+    pageInput.max = String(totalPages);
+    pageInput.value = String(currentPage);
+    var html = '<button class="group-page" type="button" data-page="prev"' + (currentPage === 1 ? ' disabled' : '') + ' aria-label="上一页">‹</button>';
+    var visible = {};
+    [1, totalPages, currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2].forEach(function (page) {
+      if (page >= 1 && page <= totalPages) visible[page] = true;
+    });
+    var previous = 0;
+    for (var page = 1; page <= totalPages; page++) {
+      if (!visible[page]) continue;
+      if (previous && page - previous > 1) html += '<span class="group-page-gap" aria-hidden="true">…</span>';
+      html += '<button class="group-page' + (page === currentPage ? ' is-current' : '') + '" type="button" data-page="' + page + '"' + (page === currentPage ? ' aria-current="page"' : '') + '>' + page + '</button>';
+      previous = page;
+    }
+    html += '<button class="group-page" type="button" data-page="next"' + (currentPage === totalPages ? ' disabled' : '') + ' aria-label="下一页">›</button>';
+    paginationEl.innerHTML = html;
+  }
+
+  function switchTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+    currentPage = 1;
+    tabs.forEach(function (t) {
+      var on = t.dataset.tab === tab;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-selected', String(on));
+    });
+    panels.deck.hidden = tab !== 'deck';
+    panels.college.hidden = tab !== 'college';
+    if (tab === 'deck') render();
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { switchTab(t.dataset.tab); });
+  });
+
+  input.addEventListener('input', function () { currentPage = 1; render(); });
+  paginationEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-page]');
+    if (!btn || btn.disabled) return;
+    var totalPages = Math.max(1, Math.ceil(GROUPS.deck.filter(function (g) { return match(g, input.value.trim().toLowerCase()); }).length / PAGE_SIZE));
+    var target = btn.dataset.page;
+    if (target === 'prev') currentPage--;
+    else if (target === 'next') currentPage++;
+    else currentPage = Number(target);
+    currentPage = Math.max(1, Math.min(currentPage, totalPages));
+    render();
+    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  function jumpToPage() {
+    var totalPages = Math.max(1, Math.ceil(GROUPS.deck.filter(function (g) { return match(g, input.value.trim().toLowerCase()); }).length / PAGE_SIZE));
+    var target = Math.trunc(Number(pageInput.value));
+    if (!Number.isFinite(target)) target = currentPage;
+    currentPage = Math.max(1, Math.min(target, totalPages));
+    render();
+    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  pageGo.addEventListener('click', jumpToPage);
+  pageInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); jumpToPage(); }
+  });
+
+  /* 复制群号：clipboard API 优先，非安全上下文回退 execCommand */
+  listEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('.gc-qid');
+    if (!btn) return;
+    var qid = btn.dataset.qid;
+    function done() { window.toast('群号已复制：' + qid, 'success'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = qid; ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); }
+      catch (err) { window.toast('复制失败，请手动复制', 'error'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(qid).then(done, fallback);
+    } else {
+      fallback();
+    }
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

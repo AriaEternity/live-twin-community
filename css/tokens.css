@@ -1,0 +1,71 @@
+/* ═══════════════════════════════════════════════════════════
+   直播☆双子 主题网站 — 设计 token 单一事实源（双端共享）
+   主站（index.html → css/tokens.css）与 Flask 页面（templates/base.html → /css/tokens.css）
+   都加载本文件；改色/改透明度阶梯/改动画曲线只改这里，不要再在各样式表另起 :root。
+   加载顺序：必须先于 style.css 与 base.html 内联 <style>。
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* 姬丝吉尔 */
+  --ksk-primary: #EE5BA6;
+  --ksk-deep: #B02A6E;
+  --ksk-neon: #FF5CE1;
+  /* 璃拉 */
+  --lil-primary: #4A6FD0;
+  --lil-deep: #26355E;
+  --lil-neon: #45E0FF;
+  /* 共享 */
+  --paper: #F5F5FA;
+  --gold: #FFD447;
+  --ink: #15102B;
+  --acid: #7CE85A;
+  /* 暗色阶梯 */
+  --bg0: #0D0A1A;
+  --bg1: #14102B;
+  --bg2: #1E1840;
+  --bg3: #2A2050;
+  --bg4: #3A2E5E;
+  /* 字体（取值以主站 style.css 旧 :root 为准，base.html 旧内联 :root 的字体栈较简，已统一为本组） */
+  --f-cn: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --f-dot: 'DotGothic16', 'Noto Sans SC', monospace;
+  --f-rounded: 'M PLUS Rounded 1c', 'Noto Sans SC', sans-serif;
+
+  /* ── 语义色（收编散布各处的硬编码色值，新增散色先入这里再用） ── */
+  --live-red: #FF3B5C;    /* 直播红点 / LIVE 徽标 / 危险按钮边框 */
+  --danger: #C21845;      /* 错误文字（flash-error、crop-error） */
+  --danger-soft: #FF8BA0; /* 暗底上的柔红（下播榜标签） */
+  --gold-hi: #FFE98A;     /* 金色渐变高光端 */
+  --night: #07050F;       /* 怪盗夜城市剪影 / 深夜底 */
+  --ok: #2E7D1E;          /* 成功文字（flash-success） */
+  --info: #1565C0;        /* 信息文字（flash-info） */
+  --warn-ink: #8A6D00;    /* 金底上的警示文字（置顶徽标） */
+  --candy-1: #FDF6FB;     /* 糖果渐变底色 1（粉端） */
+  --candy-2: #EEF1FD;     /* 糖果渐变底色 2（蓝端） */
+  --candy-3: #FDEEF6;     /* 糖果渐变底色 3（粉端收束） */
+
+  /* ── 透明度阶梯（正文半透明只允许取这里，不允许自由发挥；对比度红线：正文不低于 .6 档） ── */
+  --paper-90: rgba(245,245,250,.9);
+  --paper-80: rgba(245,245,250,.8);
+  --paper-78: rgba(245,245,250,.78);
+  --paper-75: rgba(245,245,250,.75);
+  --paper-70: rgba(245,245,250,.7);
+  --paper-60: rgba(245,245,250,.6);
+  --ink-85: rgba(21,16,43,.85);
+  --ink-80: rgba(21,16,43,.8);
+  --ink-78: rgba(21,16,43,.78);
+  --ink-75: rgba(21,16,43,.75);
+  --ink-70: rgba(21,16,43,.7);
+  --ink-60: rgba(21,16,43,.6);
+
+  /* ── 动画时长与缓动 ── */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 300ms;
+  --dur-4: 600ms;
+  --ease-out: cubic-bezier(.2,.9,.3,1);
+  --ease-pop: cubic-bezier(.3,1.4,.5,1);
+}
+
+/* ── 全局焦点环：键盘导航可见，鼠标点击不显示（两端统一，组件不要再写 outline:none 裸规则） ── */
+:focus-visible { outline: 3px dashed var(--gold); outline-offset: 3px; }
+:focus:not(:focus-visible) { outline: none; }

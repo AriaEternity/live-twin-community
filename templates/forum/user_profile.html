@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}{{ user.display_name }} 的空间 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <a class="back-link" href="{{ url_for('forum.index') }}">‹ 返回论坛</a>
+
+  <!-- 资料卡：头像 + 昵称/账号 + 注册时间 + 签名 -->
+  <div class="profile-card">
+    {% if user.avatar_url %}
+    <img class="avatar-img avatar-img-xl" src="{{ user.avatar_url }}" alt="" width="96" height="96">
+    {% else %}
+    <div class="avatar avatar-xl" style="background:{{ ['#EE5BA6','#4A6FD0','#7CE85A','#B02A6E'][user.id % 4] }};">{{ user.display_name[0] }}</div>
+    {% endif %}
+    <div class="profile-head">
+      <h1 class="profile-name">
+        <span class="name-truncate-lg" title="{{ user.display_name }}">{{ user.display_name }}</span>
+        {% if user.is_admin %}<span class="role-badge role-admin">管理员</span>{% endif %}
+      </h1>
+      <p class="profile-meta">@{{ user.username }} · 注册于 {{ user.created_at|bjtime('%Y-%m-%d') }}</p>
+      {# 关注/粉丝计数：所有人可见；本人视角包成链接，可进自己的关注/粉丝列表 #}
+      {% if current_user.is_authenticated and current_user.id == user.id %}
+      <p class="profile-follow-counts"><a class="profile-count-link" href="{{ url_for('forum.followees') }}">关注 {{ followee_count }}</a> · <a class="profile-count-link" href="{{ url_for('forum.followers') }}">粉丝 {{ follower_count }}</a></p>
+      {% else %}
+      <p class="profile-follow-counts">关注 {{ followee_count }} · 粉丝 {{ follower_count }}</p>
+      {% endif %}
+      {% if user.signature %}<p class="profile-sig">{{ user.signature }}</p>{% endif %}
+      {# 发私信 + 关注入口：仅登录且非本人时显示；关注按钮星星主题，已关注 hover 变红色「取消关注」；
+         容器用 div 不用 p——form 是流内容，塞 p 里会被浏览器自动闭合 p 弹到 .profile-actions 外面，按钮样式全丢 #}
+      {% if current_user.is_authenticated and current_user.id != user.id %}
+      <div class="profile-actions">
+        <a href="{{ url_for('messages.conversation', user_id=user.id) }}" class="btn-sm btn-sm-fill">✉️ 发私信</a>
+        <form method="post" action="{{ url_for('forum.follow_user', user_id=user.id) }}" style="display:inline;">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          {% if is_following %}
+          <button class="btn-sm follow-btn is-following" type="submit"><span class="fb-default">★ 已关注</span><span class="fb-hover">取消关注</span></button>
+          {% else %}
+          <button class="btn-sm follow-btn" type="submit">☆ 关注</button>
+          {% endif %}
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- TA 的卡组（最近几套，完整列表在卡组广场） -->
+  <h2 class="up-section">TA 的卡组 <span class="up-count">（{{ deck_count }}）</span></h2>
+  <div class="thread-list">
+    {% for d in recent_decks %}
+    <a href="{{ url_for('decks.detail', deck_id=d.deck.id) }}" class="thread-row">
+      <span class="tr-title">
+        <span class="tr-text" title="{{ d.deck.title }}">{{ d.deck.title }}</span>
+        <span class="up-snippet">主{{ d.main_count }} · 额{{ d.extra_count }} · 副{{ d.side_count }}</span>
+      </span>
+      <span class="tr-meta">{{ d.deck.updated_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+    </a>
+    {% else %}
+    {{ empty_state('还没有卡组', variant='icon', icon='☆') }}
+    {% endfor %}
+  </div>
+
+  <!-- TA 的主题（独立分页 page_t，翻页保留 page_p） -->
+  <h2 class="up-section">TA 的主题 <span class="up-count">（{{ threads.total }}）</span></h2>
+  <div class="thread-list">
+    {% for t in threads.items %}
+    <a href="{{ url_for('forum.thread', thread_id=t.id) }}" class="thread-row">
+      <span class="tr-replies">{{ t.reply_count }}</span>
+      <span class="tr-title">
+        {% if t.is_pinned %}<span class="pin-badge">置顶</span>{% endif %}
+        <span class="tr-text" title="{{ t.title }}">{{ t.title }}</span>
+      </span>
+      <span class="tr-meta">{{ t.board.name }} · {{ t.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+    </a>
+    {% else %}
+    {{ empty_state('还没发过主题', variant='icon', icon='☆') }}
+    {% endfor %}
+  </div>
+  <!-- 主题分页：独立 page_t，翻页保留 page_p -->
+  {{ pager(threads, 'forum.user_profile', page_param='page_t', user_id=user.id, page_p=posts.page) }}
+
+  <!-- TA 的回复（独立分页 page_p，翻页保留 page_t；已排除各主题首帖） -->
+  <h2 class="up-section">TA 的回复 <span class="up-count">（{{ posts.total }}）</span></h2>
+  <div class="thread-list">
+    {% for p in posts.items %}
+    <a href="{{ url_for('forum.thread', thread_id=p.thread_id) }}#post-{{ p.id }}" class="thread-row">
+      <span class="tr-title">
+        <span class="tr-text" title="回复《{{ p.thread.title }}》">回复《{{ p.thread.title }}》</span>
+        <span class="up-snippet">{{ p.content[:80] }}{% if p.content|length > 80 %}…{% endif %}</span>
+      </span>
+      <span class="tr-meta">{{ p.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+    </a>
+    {% else %}
+    {{ empty_state('还没发过回复', variant='icon', icon='☆') }}
+    {% endfor %}
+  </div>
+  <!-- 回复分页：独立 page_p，翻页保留 page_t -->
+  {{ pager(posts, 'forum.user_profile', page_param='page_p', user_id=user.id, page_t=threads.page) }}
+</div>
+
+<style>
+/* 个人空间资料卡 */
+.profile-card {
+  display: flex; gap: 16px; align-items: center;
+  padding: 20px 22px; border-radius: 14px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+  margin-bottom: 8px;
+}
+.profile-head { min-width: 0; }
+.profile-name { font-size: 20px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+.profile-meta { font-size: 12px; opacity: .75; margin-top: 4px; word-break: break-all; }
+.profile-sig {
+  font-size: 13px; opacity: .8; margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed rgba(21,16,43,.2); word-break: break-word;
+}
+.profile-follow-counts { font-size: 12px; opacity: .78; margin-top: 4px; }
+/* 本人视角的计数链接：悬停下划线提示可点 */
+.profile-count-link { color: var(--ksk-primary); text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
+  .profile-count-link:hover { text-decoration: underline; }
+}
+.up-section { font-size: 16px; font-weight: 900; margin: 26px 0 12px; }
+.up-count { font-size: 12px; font-weight: 400; opacity: .65; }
+.up-snippet { display: block; flex-basis: 100%; font-size: 12px; font-weight: 400; opacity: .75; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* 页内 btn-sm 基础外观（全局 .btn-sm 基础样式仅存在于顶栏上下文，这里补齐胶囊形与可点态） */
+.profile-actions .btn-sm {
+  display: inline-flex; align-items: center;
+  padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  font-family: var(--f-cn); cursor: pointer; text-decoration: none;
+  transition: transform .2s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .profile-actions .btn-sm:hover { transform: scale(1.05); text-decoration: none; }
+}
+/* 关注按钮：星星主题。未关注=粉蓝渐变实心（与 btn-sm-fill 实心按钮同风格）；
+   已关注=描边款，桌面 hover 切换为红色系「取消关注」（触屏无 hover 不误触发） */
+.profile-actions .follow-btn { justify-content: center; min-width: 92px; border: 1px solid transparent; }
+.profile-actions .follow-btn:not(.is-following) {
+  background: linear-gradient(90deg, var(--ksk-primary), var(--ksk-neon)); color: #fff;
+}
+.profile-actions .follow-btn.is-following {
+  border-color: var(--ksk-primary); color: var(--ksk-primary);
+  background: rgba(255,255,255,.6);
+}
+.profile-actions .follow-btn.is-following .fb-hover { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .profile-actions .follow-btn.is-following:hover { border-color: var(--live-red); color: var(--live-red); }
+  .profile-actions .follow-btn.is-following:hover .fb-default { display: none; }
+  .profile-actions .follow-btn.is-following:hover .fb-hover { display: inline; }
+}
+@media (max-width: 600px) {
+  .profile-card { flex-direction: column; text-align: center; gap: 10px; padding: 16px; }
+  .profile-name { justify-content: center; }
+  .profile-actions { justify-content: center; }
+  /* 移动端触控目标 ≥44px */
+  .profile-actions .btn-sm { min-height: 44px; padding: 9px 16px; }
+}
+</style>
+{% endblock %}

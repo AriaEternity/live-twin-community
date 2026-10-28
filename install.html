@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>装进主屏幕 — Live☆Twin Channel</title>
+<!-- 必须挂 manifest：beforeinstallprompt 按"当前页面"判断可安装性，缺了它按钮永远不出 -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#FDF6FB">
+<!-- PWA 安装说明页：自包含内联样式（离线/SW 缓存环境下也能完整显示）。
+     配色取自 css/tokens.css（糖果渐变底 candy-1/2/3、ksk/lil 双子色、ink），与主站亮色波普主题一致 -->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+         font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+         color: #15102B; text-align: center; padding: 24px;
+         background: linear-gradient(135deg, #FDF6FB, #EEF1FD 55%, #FDEEF6);
+         background-image: radial-gradient(rgba(238,91,166,.09) 1.5px, transparent 1.6px),
+                           radial-gradient(rgba(74,111,208,.07) 1.5px, transparent 1.6px),
+                           linear-gradient(135deg, #FDF6FB, #EEF1FD 55%, #FDEEF6);
+         background-size: 22px 22px, 30px 30px, 100% 100%;
+         background-position: 0 0, 11px 15px, 0 0; }
+  .icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 10px 30px rgba(238, 91, 166, .35); }
+  h1 { font-size: 24px; margin: 0; background: linear-gradient(90deg, #EE5BA6, #4A6FD0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { color: rgba(21,16,43,.7); margin: 0; line-height: 1.9; }
+  #install-btn { border: 0; cursor: pointer; font: inherit; font-weight: 900; font-size: 17px; color: #fff;
+                 padding: 14px 38px; border-radius: 999px; background: linear-gradient(90deg, #EE5BA6, #4A6FD0);
+                 box-shadow: 0 8px 22px rgba(238, 91, 166, .35); }
+  #install-btn[hidden] { display: none; }
+  .guide { max-width: 420px; background: rgba(255, 255, 255, .75); border: 1px solid rgba(238, 91, 166, .28);
+           border-radius: 16px; padding: 18px 22px; box-shadow: 0 6px 24px rgba(74, 111, 208, .12); }
+  .guide h2 { font-size: 15px; margin: 0 0 10px; color: #B02A6E; }
+  .guide ol { margin: 0; padding-left: 20px; text-align: left; color: rgba(21,16,43,.78); line-height: 2; }
+  .guide .tip { margin: 0; color: rgba(21,16,43,.78); line-height: 1.9; }
+  .back { color: #4A6FD0; font-weight: 700; }
+</style>
+</head>
+<body>
+  <img class="icon" src="/img/icons/apple-touch-icon.png" alt="Live☆Twin 应用图标" width="96" height="96">
+  <h1>把 Live☆Twin 装进主屏幕</h1>
+  <p class="lead">姬丝吉尔：把频道带回家吧！<br>璃拉：安装之后，没网也能逛哦。</p>
+  <button id="install-btn" type="button" hidden>☆ 立即安装</button>
+  <div class="guide" id="guide"></div>
+  <p><a class="back" href="/">← 返回频道</a></p>
+<script>
+/* Service Worker 注册：本页可能是访客的第一个页面（直接从分享链接进来），
+   不注册 SW 浏览器就判不可安装、beforeinstallprompt 永不触发；仅 http(s) 环境 */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  navigator.serviceWorker.register('/sw.js');
+}
+/* 平台分流：已安装 → 欢迎回家；iOS → Safari 分享添加；Chromium → 优先 beforeinstallprompt 一键装，否则给菜单路径 */
+var deferred = null;
+var guide = document.getElementById('guide');
+var btn = document.getElementById('install-btn');
+
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault(); // 拦下默认迷你信息条，改由我们的按钮触发
+  deferred = e;
+  btn.hidden = false;
+  guide.innerHTML = '<p class="tip">点上面的按钮，就能把频道装到主屏幕 ☆</p>';
+});
+
+var installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+var isMobile = /android|webos|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+if (installed) {
+  guide.innerHTML = '<p class="tip">你已经在用安装版啦，欢迎回家 ☆</p>';
+} else if (isMobile) {
+  /* 手机端一键安装依赖浏览器内核能力（国产浏览器/微信/iOS 均不支持 beforeinstallprompt），
+     不画饼：直接说明暂不支持；支持的手机 Chrome/Edge 会触发 beforeinstallprompt 自动换成按钮 */
+  guide.innerHTML = '<h2>手机端暂不支持一键安装</h2>' +
+    '<p class="tip">姬丝吉尔：手机浏览器还不太给力呢。<br>' +
+    '璃拉：在电脑上打开本页可以一键安装；手机的话，也可以用浏览器菜单「添加到主屏幕」凑合一枚图标。</p>';
+} else {
+  guide.innerHTML = '<h2>安装方法（Chrome / Edge）</h2><ol>' +
+    '<li>看地址栏最右侧的「安装」小图标（显示器带箭头）</li>' +
+    '<li>或者点菜单 ⋯ →「应用」→「安装 Live☆Twin」</li>' +
+    '<li>确认后，主屏幕/桌面上就有双子了</li></ol>';
+}
+
+btn.addEventListener('click', function () {
+  if (!deferred) return;
+  var d = deferred;
+  deferred = null;
+  d.prompt();
+  d.userChoice.then(function () { btn.hidden = true; });
+});
+</script>
+</body>
+</html>

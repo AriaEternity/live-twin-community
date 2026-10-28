@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}用户管理 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="page-header">
+    <h1>用户管理</h1>
+    <p>共 {{ users|length }} 位注册用户</p>
+  </div>
+
+  <div class="admin-nav">
+    <a href="{{ url_for('admin.panel') }}">总览</a>
+    <a href="{{ url_for('admin.users') }}" class="active">用户管理</a>
+    <a href="{{ url_for('admin.threads') }}">帖子管理</a>
+    <a href="{{ url_for('admin.announcements') }}">公告管理</a>
+    <a href="{{ url_for('admin.logs') }}">操作日志</a>
+  </div>
+
+  <!-- 窄屏下表格容器可横向滚动 -->
+  <div class="table-wrap">
+  <table class="admin-table">
+    <tr><th>ID</th><th>用户名</th><th>邮箱</th><th>注册时间</th><th>帖/回</th><th>角色</th><th>操作</th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td><span class="name-truncate-lg" title="{{ u.display_name }}">{{ u.display_name }}</span><br><span style="font-size:11px;opacity:.6;">{{ u.username }}</span></td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.created_at|bjtime('%Y-%m-%d') }}</td>
+      <td>{{ u.threads.count() }} / {{ u.posts.count() }}</td>
+      <td><span class="role-badge {{ 'role-admin' if u.is_admin else 'role-user' }}">{{ '管理员' if u.is_admin else '用户' }}</span></td>
+      <td>
+        {% if u.id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.toggle_admin', user_id=u.id) }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn" type="submit">{{ '取消管理' if u.is_admin else '设为管理' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.delete_user', user_id=u.id) }}"
+              data-confirm="确认把 {{ u.display_name }}（{{ u.username }}）从频道永久封禁？其帖子与回复会一并除外，不可恢复">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button class="admin-btn danger" type="submit">删除</button>
+        </form>
+        {% else %}
+        <span style="font-size:11px;opacity:.78;">（你自己）</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;opacity:.78;padding:24px;">☆ 暂无记录</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+<script>
+// 管理员操作二次确认：用 data-confirm 属性避免内联 JS 与用户名注入风险
+(function () {
+  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      if (!confirm(form.dataset.confirm)) {
+        e.preventDefault();
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

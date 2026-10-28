@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} {{ title }} · Live☆Twin 社区{% endblock %}
+{% block content %}
+{# 人设化文案按错误码分支，优先级高于 errorhandler 传入的 message（仅兜底未知码） #}
+{% set persona = {
+  400: '这条指令好像哪里不对，检查一下再来',
+  403: '这扇门需要管理员钥匙',
+  404: '这张卡不在卡组里（被里侧除外了）',
+  405: '这个动作在这里使不出来',
+  413: '图片超出卡套容量',
+  429: '操作太密集啦，喝口水再来',
+  500: '直播间信号中断，稍后再来打 call'
+} %}
+<div class="container">
+  <div class="form-card" style="text-align: center;">
+    <h2>{{ code }} · {{ title }}</h2>
+    <p style="font-size: 14px; opacity: .85; margin-bottom: 24px;">{{ persona.get(code, message) }}</p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a href="{{ url_for('main.index') }}" class="btn btn-primary">返回首页</a>
+      <a href="{{ url_for('forum.index') }}" class="btn btn-secondary">去论坛</a>
+      {% if code == 403 and not current_user.is_authenticated %}
+      <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-secondary">去登录</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

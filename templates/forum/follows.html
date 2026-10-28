@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}{{ '我关注的人' if kind == 'followees' else '我的粉丝' }} — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container container--wide">
+  <a class="back-link" href="{{ url_for('forum.user_profile', user_id=current_user.id) }}">‹ 返回个人空间</a>
+  <div class="page-header">
+    <h1>{{ '我关注的人' if kind == 'followees' else '我的粉丝' }}</h1>
+    <p>{{ '你关注的伙伴都在这儿☆' if kind == 'followees' else '关注你的伙伴都在这儿☆' }}</p>
+  </div>
+
+  <!-- 关注/粉丝列表：e = {user, since, mutual}；整行链接到对方个人空间 -->
+  <div class="follow-list">
+    {% for e in entries.items %}
+    <a class="follow-row" href="{{ url_for('forum.user_profile', user_id=e.user.id) }}">
+      {% if e.user.avatar_url %}
+      <img class="avatar-img follow-avatar" src="{{ e.user.avatar_url }}" alt="" width="40" height="40">
+      {% else %}
+      <div class="avatar follow-avatar" style="background:{{ ['#EE5BA6','#4A6FD0','#7CE85A','#B02A6E'][e.user.id % 4] }};">{{ e.user.display_name[0] }}</div>
+      {% endif %}
+      <span class="follow-main">
+        <span class="follow-name">
+          <span class="name-truncate" title="{{ e.user.display_name }}">{{ e.user.display_name }}</span>
+          {% if e.mutual %}<span class="mutual-badge">互关</span>{% endif %}
+        </span>
+        <span class="follow-username">@{{ e.user.username }}</span>
+      </span>
+      <span class="follow-since">{{ '关注于' if kind == 'followees' else '关注了我' }} {{ e.since|bjtime('%Y-%m-%d %H:%M') }}</span>
+    </a>
+    {% else %}
+    {{ empty_state('还没有关注任何人' if kind == 'followees' else '还没有粉丝', variant='icon', icon='☆') }}
+    {% endfor %}
+  </div>
+
+  {{ pager(entries, 'forum.' + kind) }}
+</div>
+
+<style>
+/* 关注/粉丝列表行：头像 + 名称/账号 + 右侧时间 */
+.follow-list { display: flex; flex-direction: column; gap: 8px; }
+.follow-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border-radius: 12px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+  color: var(--ink); text-decoration: none;
+  transition: transform .2s, border-color .2s;
+}
+/* 浮起仅鼠标设备生效，防触屏 sticky hover（踩坑 #19） */
+@media (hover: hover) and (pointer: fine) {
+  .follow-row:hover { transform: translateY(-1px); border-color: rgba(238,91,166,.4); text-decoration: none; }
+}
+.follow-avatar { width: 40px; height: 40px; }
+.follow-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.follow-name { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; min-width: 0; }
+.follow-username { font-size: 11px; opacity: .7; }
+/* 「互关」粉系小胶囊 */
+.mutual-badge {
+  flex-shrink: 0; padding: 1px 8px; border-radius: 999px; font-size: 10px; font-weight: 900;
+  background: linear-gradient(90deg, var(--ksk-primary), var(--lil-primary)); color: #fff;
+}
+.follow-since { font-size: 11px; opacity: .7; white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 600px) {
+  /* 触控目标 ≥44px；窄屏藏掉右侧时间（个人空间里仍能看到），名称列不占满防溢出 */
+  .follow-row { min-height: 44px; padding: 10px 12px; gap: 10px; }
+  .follow-since { display: none; }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Live☆Twin 社区{% endblock %}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>⭐</text></svg>">
+<link rel="preconnect" href="https://fonts.loli.net" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.loli.net">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=DotGothic16&display=swap">
+<link rel="stylesheet" href="https://fonts.loli.net/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap">
+<link rel="stylesheet" href="/css/tokens.css?v=20260726">
+  <!-- Open Graph 站点默认（页面未覆盖时生效） -->
+  {% block og %}
+  <meta property="og:title" content="Live☆Twin 社区 — 直播☆双子">
+  <meta property="og:description" content="虚拟主播姬丝吉尔 & 璃拉正在直播！卡册、论坛、搜卡，粉丝同好一网打尽。">
+  <meta property="og:image" content="{{ url_for('main.card_image', filename='cropped/82699999.jpg', _external=True) }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ request.url_root }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {% endblock %}
+<!-- 全站组件样式（2026-07-23 批次 3 自内联 <style> 外链化；token 在 tokens.css，须先加载） -->
+<link rel="stylesheet" href="/css/forum.css?v=20260729">
+{% block head %}{% endblock %}
+<style>
+/* 私信入口当前页高亮：topbar-nav 的 .nav-active 选择器不覆盖 topbar-user 区域，此处单独补一行 */
+.notif-bell.nav-active { background: rgba(255,255,255,.9); }
+</style>
+</head>
+<body>
+
+<!-- 波普漂浮圆圈背景（主站直播间场景同款） -->
+<div class="pop-bg" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+<!-- 顶栏 -->
+<nav class="topbar">
+  <a href="{{ url_for('main.index') }}" class="topbar-brand">
+    <i>☆</i>Live☆Twin<em class="dot">チャンネル</em>
+  </a>
+  <div class="topbar-nav">
+    <a href="{{ url_for('main.index') }}">首页</a>
+    <a href="{{ url_for('forum.index') }}" class="{% if request.path.startswith('/forum') %}nav-active{% endif %}">论坛</a>
+    <a href="{{ url_for('cards.search_page') }}" class="{% if request.path.startswith('/cards') %}nav-active{% endif %}">搜卡</a>
+    <a href="{{ url_for('decks.list') }}" class="{% if request.path.startswith('/decks') %}nav-active{% endif %}">卡组</a>
+    <a href="{{ url_for('groups.index') }}" class="{% if request.path.startswith('/groups') %}nav-active{% endif %}">群索引</a>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <a href="{{ url_for('admin.panel') }}" class="{% if request.path.startswith('/admin') %}nav-active{% endif %}">管理</a>
+    {% endif %}
+  </div>
+  <div class="topbar-user">
+    {% if current_user.is_authenticated %}
+      {# 铃铛合并未读计数：通知 + 私信（分别由 forum / messages 蓝图全局注入），99+ 封顶逻辑不变 #}
+      {% set total_unread = unread_notification_count + unread_message_count %}
+      <a href="{{ url_for('forum.notifications') }}" class="notif-bell{% if total_unread %} has-unread{% endif %}" title="通知" aria-label="通知">
+        <span class="bell-icon" aria-hidden="true">🔔</span>
+        {% if total_unread %}<span class="notif-badge">{{ '99+' if total_unread > 99 else total_unread }}</span>{% endif %}
+      </a>
+      {# 私信入口：结构仿照通知铃铛，未读徽章复用 notif-badge；处于 /messages 时加 nav-active 高亮 #}
+      <a href="{{ url_for('messages.inbox') }}" class="notif-bell{% if unread_message_count %} has-unread{% endif %}{% if request.path.startswith('/messages') %} nav-active{% endif %}" title="私信" aria-label="私信">
+        <span class="bell-icon" aria-hidden="true">✉️</span>
+        {% if unread_message_count %}<span class="notif-badge">{{ '99+' if unread_message_count > 99 else unread_message_count }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('forum.user_profile', user_id=current_user.id) }}" class="btn-sm btn-sm-outline topbar-wide-only">我的空间</a>
+      {% if current_user.avatar_url %}
+      {# 有自定义头像时昵称前显示 28px 小圆图；无头像保持现状只显示昵称 #}
+      <a href="{{ url_for('auth.settings') }}" title="个人设置"><img class="avatar-img avatar-img-xs" src="{{ current_user.avatar_url }}" alt="" width="28" height="28"></a>
+      {% endif %}
+      <a href="{{ url_for('auth.settings') }}" class="user-link" title="{{ current_user.display_name }}（个人设置）">{{ current_user.display_name }}</a>
+      <a href="{{ url_for('auth.settings') }}" class="btn-sm btn-sm-outline topbar-wide-only">设置</a>
+      <a href="{{ url_for('auth.logout') }}" class="btn-sm btn-sm-outline">登出</a>
+    {% else %}
+      <a href="{{ url_for('auth.login') }}" class="btn-sm btn-sm-outline">登录</a>
+      <a href="{{ url_for('auth.register') }}" class="btn-sm btn-sm-fill">注册</a>
+    {% endif %}
+  </div>
+</nav>
+
+<!-- 消息 -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flashes">
+  {% for cat, msg in messages %}
+    <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<!-- 主体 -->
+{% block content %}{% endblock %}
+
+<footer class="site-footer">
+  本网站为非官方粉丝社区 · 角色与卡图 © KONAMI<br>
+  直播☆双子 / Evil★Twin 社区<br>
+  
+  
+</footer>
+
+<!-- toast 容器（window.toast(msg, kind) 驱动，kind ∈ success/error/info） -->
+<div id="toast-root" aria-live="polite"></div>
+
+<script>
+/* 全局 toast：底部居中深色胶囊，最多同时 3 条，3s 后淡出移除 */
+window.toast = function (msg, kind) {
+  kind = kind || 'info';
+  var root = document.getElementById('toast-root');
+  if (!root) return;
+  while (root.children.length >= 3) root.removeChild(root.firstChild);
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + kind;
+  var icon = document.createElement('span');
+  icon.className = 'toast-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = kind === 'success' ? '★' : (kind === 'error' ? '✕' : '☆');
+  el.appendChild(icon);
+  el.appendChild(document.createTextNode(String(msg)));
+  root.appendChild(el);
+  setTimeout(function () {
+    el.classList.add('is-leaving');
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 320);
+  }, 3000);
+};
+/* 全局提交锁：表单提交后提交按钮进入 loading + disabled，防连点重复提交；
+   按钮加 data-no-lock 可豁免；5s 兜底自动解锁（防网络异常后按钮永远卡死）。
+   onsubmit="return confirm(...)" 取消时 submit 事件不触发，天然兼容；
+   fetch 类提交（如搜卡）不走此路径，不受影响。 */
+document.addEventListener('submit', function (e) {
+  var btn = e.target.querySelector('button[type="submit"]:not([data-no-lock])');
+  if (!btn) return;
+  if (btn.disabled) { e.preventDefault(); return; }
+  btn.classList.add('is-loading'); btn.disabled = true;
+  setTimeout(function(){ btn.classList.remove('is-loading'); btn.disabled = false; }, 5000);
+});
+/* 切页标题彩蛋（与主站同款）：离开标签页随机换成双子喊话，回来恢复原标题 */
+(function () {
+  var LEAVE_TITLES = [
+    '☆ 信号丢失，双子找人中…',
+    '姬丝吉尔：喂——你去哪了？！',
+    '璃拉：快回来嘛…☆',
+    'BUFFERING…观众 -1',
+    '☆ 直播还在继续哦~',
+    '（双子盯——）别走开哦',
+    '予告状：马上回来逮捕你☆',
+    '双子星待机中…zzz',
+  ];
+  var original = document.title;
+  document.addEventListener('visibilitychange', function () {
+    document.title = document.hidden
+      ? LEAVE_TITLES[Math.floor(Math.random() * LEAVE_TITLES.length)]
+      : original;
+  });
+})();
+</script>
+
+<!-- 鼠标拖尾 · 双子粉蓝光带（与主站同款，自包含无依赖） -->
+<script src="/js/trail.js"></script>
+<!-- 点击爆星 · 双子粉蓝双色（与主站同款，自包含无依赖） -->
+<script src="/js/starburst.js"></script>
+
+</body>
+</html>

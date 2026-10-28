@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}注册 — Live☆Twin 社区{% endblock %}
+
+{% block head %}
+<style>
+  /* 密码强度条 + 规则清单（auth 深 navy 霓虹窗同款配色） */
+  .pw-meter { height: 6px; border-radius: 999px; background: #3A2E5E; margin-top: 8px; overflow: hidden; }
+  .pw-meter i {
+    display: block; height: 100%; width: 0; border-radius: 999px;
+    transition: width .3s, background .3s;
+  }
+  .pw-label { font-size: 11px; margin-top: 5px; font-weight: 700; min-height: 16px; }
+  .pw-rules { list-style: none; margin-top: 10px; font-size: 11px; }
+  .pw-rules li { margin: 2px 0; opacity: .8; transition: opacity .2s, color .2s; }
+  .pw-rules li::before { content: '✗ '; color: #ff6b8a; }
+  .pw-rules li.ok { opacity: 1; color: #7CE85A; }
+  .pw-rules li.ok::before { content: '✓ '; color: #7CE85A; }
+
+  /* 注册页内容多：紧凑排版让整窗一屏放下（规则清单两列、间距收紧） */
+  .auth-window { margin: 24px auto; }
+  .auth-body { padding: 16px 26px 18px; }
+  .auth-body h2 { font-size: 22px; }
+  .auth-note { margin-bottom: 12px; }
+  .auth-window .form-group { margin-bottom: 10px; }
+  .pw-rules { columns: 2; column-gap: 14px; margin-top: 6px; }
+  /* 极矮屏兜底：窗体限高面板内滚，保证提交按钮可达（JS 等比缩放生效时会去掉限高） */
+  .auth-panel { max-height: calc(100vh - 170px); overflow-y: auto; }
+  /* JS 等比缩放时固定变换原点，避免动画/缩放互相拉扯 */
+  .auth-window.js-scaled { transform-origin: top center; }
+  @media (min-width: 1600px) {
+    .auth-body { padding: 20px 40px 22px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <!-- 秘密验证语卡图风：左侧卡图面板 + 深 navy 霓虹窗体 -->
+  <!-- auth-scale-wrap：JS 等比缩放时由它接管布局高度（transform 不改布局，直接压窗高会截断内容） -->
+  <div class="auth-scale-wrap">
+  <div class="auth-window">
+    <div class="auth-art" aria-hidden="true">
+      <img src="/cards/cropped/61976639.jpg" alt="" loading="lazy">
+    </div>
+    <div class="auth-panel">
+    <div class="auth-titlebar">
+      <span class="auth-dots"><i></i><i></i><i></i></span>
+      <span class="dot">SECRET PASSWORD</span>
+    </div>
+    <div class="auth-body">
+      <h2>注册</h2>
+      <p class="auth-note">新观众登记，欢迎上船☆</p>
+      <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label for="reg-username">用户名</label>
+          <input class="form-input" type="text" name="username" id="reg-username" required autocomplete="username" minlength="2" maxlength="24" pattern="[a-zA-Z0-9_]{2,24}" title="2-24 位，仅允许字母、数字、下划线" value="{{ request.form.get('username', '') }}">
+          <p style="font-size:11px;opacity:.8;margin-top:5px;">登录用的账号名，注册后不可修改</p>
+        </div>
+        <div class="form-group">
+          <label for="reg-nickname">昵称（选填，支持中文）</label>
+          <input class="form-input" type="text" name="nickname" id="reg-nickname" maxlength="24" pattern="\S+" title="2-24 个字符，汉字按 2 个字符计算，不能包含空格" value="{{ request.form.get('nickname', '') }}">
+          <p style="font-size:11px;opacity:.8;margin-top:5px;">论坛里展示的名字，随时可在「个人设置」里修改；不填则默认与用户名相同</p>
+        </div>
+        <div class="form-group">
+          <label for="reg-email">邮箱</label>
+          <input class="form-input" type="email" name="email" id="reg-email" required autocomplete="email" value="{{ request.form.get('email', '') }}">
+        </div>
+        <div class="form-group">
+          <label for="pw">密码（8-64 位，必须同时包含字母和数字）</label>
+          <input class="form-input" type="password" name="password" id="pw" required minlength="8" maxlength="64" autocomplete="new-password" placeholder="请输入密码">
+          <div class="pw-meter"><i id="pwMeterBar"></i></div>
+          <div class="pw-label" id="pwLabel"></div>
+          <ul class="pw-rules">
+            <li id="ruleLen">8-64 位</li>
+            <li id="ruleAscii">仅限字母、数字和常见符号（不含空格与中文）</li>
+            <li id="ruleMix">同时包含字母和数字</li>
+            <li id="ruleNotName">不包含用户名</li>
+            <li id="ruleNotEmail">不包含邮箱前缀</li>
+          </ul>
+          <p style="font-size:11px;opacity:.8;margin-top:6px;">注意：过于常见的弱密码（如 12345678）不可用</p>
+        </div>
+        <div class="form-group">
+          <label for="pwConfirm">确认密码</label>
+          <input class="form-input" type="password" name="confirm" id="pwConfirm" required minlength="8" maxlength="64" placeholder="请再次输入密码">
+          <div class="pw-label" id="pwMatchLabel"></div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%;margin-bottom:14px;">▶ 开启新频道</button>
+        <p class="auth-foot">
+          已有账号？<a href="{{ url_for('auth.login') }}">立即登录</a>
+        </p>
+      </form>
+    </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+// 矮屏适配：注册表单较高，在桌面矮屏（如 1366×768）上把整窗等比缩小到一屏可见，
+// 避免窗内出现滚动条；缩不动的极矮屏仍走 CSS 限高内滚兜底。移动端不缩放，正常页面滚动。
+// 注意：transform 只缩放渲染不改布局，布局高度由外层 .auth-scale-wrap 接管，
+// 绝不能直接给 .auth-window 设 height（overflow:hidden 会把窗内内容截断）。
+(function () {
+  const wrap = document.querySelector('.auth-scale-wrap');
+  const win = document.querySelector('.auth-window');
+  const panel = document.querySelector('.auth-panel');
+  if (!wrap || !win || !panel) return;
+  const MIN_SCALE = 0.6;   // 再小字就没法看了，宁可内滚
+  const RESERVED = 150;    // 页头/页脚/外边距的预留高度（与 CSS 的 170 限高口径接近）
+  function fit() {
+    // 先复位量自然尺寸
+    win.classList.remove('js-scaled');
+    win.style.transform = '';
+    wrap.style.height = '';
+    panel.style.maxHeight = '';
+    if (window.innerWidth <= 600) {  // 移动端不缩放，去掉限高让页面自然滚动
+      panel.style.maxHeight = 'none';
+      return;
+    }
+    panel.style.maxHeight = 'none';
+    const natural = win.offsetHeight;
+    const avail = window.innerHeight - RESERVED;
+    if (natural > avail) {
+      const s = avail / natural;
+      if (s >= MIN_SCALE) {
+        panel.style.maxHeight = 'none';      // 缩放得下就不内滚
+        win.classList.add('js-scaled');
+        win.style.transform = 'scale(' + s + ')';
+        wrap.style.height = (natural * s) + 'px';   // 占位压到缩放后高度，消除页级滚动条
+      } else {
+        panel.style.maxHeight = '';          // 恢复 CSS 限高内滚兜底
+      }
+    }
+  }
+  fit();
+  window.addEventListener('resize', fit);
+})();
+</script>
+<script>
+// 注册页实时密码强度提示（规则与后端 security.validate_password 对齐）
+(function () {
+  const pw = document.getElementById('pw');
+  const confirm = document.getElementById('pwConfirm');
+  const username = document.querySelector('input[name="username"]');
+  const email = document.querySelector('input[name="email"]');
+  const bar = document.getElementById('pwMeterBar');
+  const label = document.getElementById('pwLabel');
+  const matchLabel = document.getElementById('pwMatchLabel');
+  const ruleLen = document.getElementById('ruleLen');
+  const ruleAscii = document.getElementById('ruleAscii');
+  const ruleMix = document.getElementById('ruleMix');
+  const ruleNotName = document.getElementById('ruleNotName');
+  const ruleNotEmail = document.getElementById('ruleNotEmail');
+
+  // 邮箱前缀（@ 之前部分），与后端 validate_password 一致：长度 ≥3 才参与校验
+  function emailPrefix() {
+    const p = (email.value.trim().split('@')[0] || '').toLowerCase();
+    return p.length >= 3 ? p : '';
+  }
+
+  function score(p, uname, eprefix) {
+    let s = 0;
+    if (p.length >= 8) s++;
+    if (p.length >= 12) s++;
+    if (/[a-z]/.test(p) && /[A-Z]/.test(p)) s++;
+    if (/\d/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    if (uname && uname.length >= 2 && p.toLowerCase().includes(uname.toLowerCase())) s = Math.min(s, 1);
+    if (eprefix && p.toLowerCase().includes(eprefix)) s = Math.min(s, 1);
+    return s;
+  }
+
+  function refresh() {
+    const p = pw.value;
+    const uname = username.value.trim();
+    const eprefix = emailPrefix();
+    ruleLen.classList.toggle('ok', p.length >= 8 && p.length <= 64);
+    ruleAscii.classList.toggle('ok', !!p && /^[\x21-\x7e]+$/.test(p));
+    ruleMix.classList.toggle('ok', /[A-Za-z]/.test(p) && /\d/.test(p));
+    ruleNotName.classList.toggle('ok', !uname || uname.length < 2 || !p.toLowerCase().includes(uname.toLowerCase()));
+    ruleNotEmail.classList.toggle('ok', !eprefix || !p.toLowerCase().includes(eprefix));
+
+    if (!p) {
+      bar.style.width = '0';
+      label.textContent = '';
+    } else {
+      const s = score(p, uname, eprefix);
+      if (s <= 2) { bar.style.width = '33%'; bar.style.background = '#ff6b8a'; label.textContent = '强度：弱'; label.style.color = '#ff6b8a'; }
+      else if (s <= 3) { bar.style.width = '66%'; bar.style.background = '#FFD447'; label.textContent = '强度：中'; label.style.color = '#FFD447'; }
+      else { bar.style.width = '100%'; bar.style.background = '#7CE85A'; label.textContent = '强度：强'; label.style.color = '#7CE85A'; }
+    }
+
+    if (confirm.value) {
+      const same = confirm.value === p;
+      matchLabel.textContent = same ? '✓ 两次输入一致' : '✗ 两次输入不一致';
+      matchLabel.style.color = same ? '#7CE85A' : '#ff6b8a';
+    } else {
+      matchLabel.textContent = '';
+    }
+  }
+
+  pw.addEventListener('input', refresh);
+  confirm.addEventListener('input', refresh);
+  username.addEventListener('input', refresh);
+  email.addEventListener('input', refresh);
+})();
+</script>
+{% endblock %}

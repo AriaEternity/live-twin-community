@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, empty_state %}
+{% block title %}站内搜卡 · Live☆Twin 社区{% endblock %}
+{% block head %}
+<style>
+  .search-bar { display: flex; gap: 10px; margin-bottom: 24px; }
+  .search-bar .form-input { flex: 1; margin: 0; }
+  .search-hint { font-size: 12px; opacity: .75; margin: -14px 0 20px 4px; }
+  /* 数据来源说明（页脚小字，分行排版，透明度按项目规则 ≥.7） */
+  .data-credit { max-width: 480px; margin: 30px auto 8px; padding-top: 14px;
+    border-top: 1px dashed rgba(21,16,43,.18); text-align: center;
+    font-size: 12px; line-height: 2.1; opacity: .75; }
+  .data-credit p { margin: 0; }
+  .data-credit b { color: var(--ksk-primary); font-weight: 700; margin-right: 8px; }
+  .data-credit .dc-konami { margin-top: 8px; font-size: 11px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .card-item {
+    background: rgba(255,255,255,.65); border: 1px solid rgba(21,16,43,.1);
+    border-radius: 12px; padding: 12px; cursor: pointer;
+    transition: background .2s, border-color .2s, transform .2s, box-shadow .2s;
+  }
+  /* 卡片 hover 浮起（仅鼠标悬停设备生效，防触屏 sticky hover） */
+  @media (hover: hover) and (pointer: fine) {
+    .card-item:hover {
+      background: rgba(255,255,255,.9); border-color: rgba(238,91,166,.4);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(238,91,166,.15);
+    }
+  }
+  .card-item img { width: 100%; height: auto; aspect-ratio: 268/391; border-radius: 8px; display: block; background: #E8E4F0; }
+  /* 卡图容器：禁限角标 .cf-ban（card_filter.js 注入样式）的定位基准 */
+  .card-item .ci-img { position: relative; }
+  .card-item .ci-name { font-size: 13px; font-weight: 700; margin-top: 8px; line-height: 1.4; }
+  .card-item .ci-types { font-size: 11px; opacity: .78; margin-top: 4px; white-space: pre-wrap; }
+  /* filter 端点补充信息行：种族 · 属性 · 星级/LINK */
+  .card-item .ci-meta { font-size: 11px; opacity: .78; margin-top: 2px; }
+
+  /* 条件筛选面板容器（组件本体样式由 js/card_filter.js 注入） */
+  .filter-slot { margin: -6px 0 18px; }
+
+  .card-detail {
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(21,16,43,.2);
+    font-size: 12px; line-height: 1.8; white-space: pre-wrap; word-break: break-word;
+  }
+  .card-detail .cd-alias { opacity: .75; margin-bottom: 6px; }
+  .card-detail .cd-pdesc { color: #8a6d00; margin-bottom: 6px; white-space: pre-wrap; }
+
+  .search-status { text-align: center; padding: 40px 0; font-size: 14px; opacity: .85; }
+  .search-status.error { color: #c21845; opacity: 1; }
+  .search-status.notice { color: #8a6d00; opacity: 1; }
+
+  /* ── 动效层：搜索结果卡入场（reduce 档自动关停）── */
+  @media (prefers-reduced-motion: no-preference) {
+    /* 搜索结果卡入场（每张延迟由 render() 内联 style 给出，封顶 12 张） */
+    .card-item { animation: fadeUp .35s ease-out backwards; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <div class="page-header">
+    <h1>站内搜卡</h1>
+    <p>全卡池模糊搜索 · 支持中文 / 日文 / 英文卡名或卡片编号 · 不记卡名也可用「条件筛选」按特征翻卡</p>
+  </div>
+
+  <form class="search-bar" id="search-form">
+    <input class="form-input" id="card-q" type="search" maxlength="64" aria-label="搜索卡片"
+           placeholder="输入卡名关键词或卡号，如：双子 / Ki-sikil / 36326160">
+    <button class="btn btn-primary" type="submit">搜索</button>
+  </form>
+  <p class="search-hint">结果最多显示 30 张，点击卡片可展开卡片效果文本；不输入卡名时可用「条件筛选」按条件翻卡。</p>
+
+  <!-- 条件筛选面板（js/card_filter.js 渲染） -->
+  <div id="filter-panel" class="filter-slot"></div>
+
+  <!-- 未搜索时的空态引导（首次搜索后由 JS 隐藏） -->
+  {{ empty_state('直播间待机中…', '输入卡名或卡号，双子立刻帮你翻出那张卡', id='empty-hint') }}
+
+  <div id="search-status" class="search-status" hidden></div>
+  <div class="card-grid" id="card-grid"></div>
+  <!-- filter 端点换页控件（样式由 card_filter.js 注入的 .cf-pager 提供） -->
+  <div id="search-pager" class="cf-pager" hidden></div>
+
+  <div class="data-credit">
+    <p><b>卡名搜索</b>百鸽（ygocdb）；远端暂不可用时展示有日期标记的本地原文快照。</p>
+    <p><b>条件筛选</b>本站本地卡库（YGOPRODeck 全量属性 + 百鸽中文资料；官方简中名优先，社区译名补充）</p>
+    <p><b>禁限卡表</b>按 OCG 官方卡表整理</p>
+    <p class="dc-konami">卡名、效果文本与卡图版权归 KONAMI 所有，本站仅作粉丝交流使用</p>
+  </div>
+</div>
+
+<script src="/js/card_filter.js?v=20260729"></script>
+<script>
+(function () {
+  var form = document.getElementById('search-form');
+  var input = document.getElementById('card-q');
+  var grid = document.getElementById('card-grid');
+  var status = document.getElementById('search-status');
+  var emptyHint = document.getElementById('empty-hint');
+  var pager = document.getElementById('search-pager');
+  var submitBtn = form.querySelector('button[type="submit"]');
+  var filterParams = {}; // 筛选面板最近应用的条件（key 照后端契约）
+  var lastKey = '';      // 上次成功请求的完整 URL，防重复提交
+
+  /* 筛选面板：应用条件后立即按「当前搜索词 + 条件」从第 1 页查询；
+     重置时 params 为 {}，无文字无条件则只提示不请求 */
+  if (window.CardFilter) {
+    window.CardFilter.init(document.getElementById('filter-panel'), function (params) {
+      filterParams = params || {};
+      runQuery(1);
+    });
+  }
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    submitBtn.textContent = loading ? '搜索中…' : '搜索';
+  }
+
+  function showStatus(text, kind) {
+    status.textContent = text;
+    status.hidden = !text;
+    status.className = 'search-status' + (kind ? ' ' + kind : '');
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* 禁限角标：ban 0禁/1限/2准（3=未收录不出角标），样式 .cf-ban 由 card_filter.js 注入 */
+  function banBadge(c) {
+    if (c.ban !== 0 && c.ban !== 1 && c.ban !== 2) return '';
+    var label = c.ban === 0 ? '禁' : (c.ban === 1 ? '限' : '准');
+    var desc = c.ban === 0 ? '禁止卡' : (c.ban === 1 ? '限制卡' : '准限制卡');
+    return '<span class="cf-ban cf-ban-' + c.ban + '" title="OCG 禁限卡表：' + desc + '">' + label + '</span>';
+  }
+
+  /* filter/search 扩展字段补充行：种族 · 属性 · 星级/LINK（有才显示） */
+  function metaLine(c) {
+    var parts = [];
+    if (c.race_cn) parts.push(c.race_cn);
+    if (c.attr_cn) parts.push(c.attr_cn);
+    if (c.level !== null && c.level !== undefined && c.level !== '') parts.push('Lv' + c.level);
+    if (c.linkval) parts.push('LINK-' + c.linkval);
+    return parts.length ? '<div class="ci-meta">' + esc(parts.join(' · ')) + '</div>' : '';
+  }
+
+  function render(cards) {
+    grid.innerHTML = cards.map(function (c, i) {
+      var alias = [c.cn_name && c.cn_name !== c.sc_name ? c.cn_name : '', c.en_name, c.jp_name]
+        .filter(Boolean).join(' / ');
+      // filter 端点不返回 desc/pdesc，缺省时不渲染详情区（点卡片无可展开内容）
+      var detail = (alias ? '<div class="cd-alias">' + esc(alias) + '</div>' : '') +
+        (c.pdesc ? '<div class="cd-pdesc">' + esc(c.pdesc) + '</div>' : '') +
+        (c.desc ? esc(c.desc) : '');
+      return '<div class="card-item" data-idx="' + i + '" role="button" tabindex="0" aria-expanded="false"' +
+        // 入场 stagger 延迟（reduce 档无动画，此 style 自然失效），12 张封顶防长尾
+        ' style="animation-delay:' + Math.min(i, 12) * 45 + 'ms">' +
+        '<div class="ci-img">' +
+          '<img src="' + esc(c.image_small) + '" alt="' + esc(c.sc_name) + '" loading="lazy" width="268" height="391" onerror="this.onerror=null;this.src=\'/img/card_pre_release.png\'">' +
+          banBadge(c) +
+        '</div>' +
+        '<div class="ci-name">' + esc(c.sc_name) + '</div>' +
+        '<div class="ci-types">' + esc(c.types || '') + '</div>' +
+        metaLine(c) +
+        (detail ? '<div class="card-detail" hidden>' + detail + '</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  grid.addEventListener('click', function (e) {
+    var item = e.target.closest('.card-item');
+    if (!item) return;
+    var detail = item.querySelector('.card-detail');
+    if (!detail) return;
+    detail.hidden = !detail.hidden;
+    item.setAttribute('aria-expanded', String(!detail.hidden));
+  });
+  grid.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var item = e.target.closest('.card-item');
+    if (!item) return;
+    e.preventDefault();
+    item.click();
+  });
+
+  /* filter 端点换页控件渲染（search 端点无分页不显示） */
+  function renderPager(ps) {
+    if (!ps || ps.pages <= 1) { pager.innerHTML = ''; pager.hidden = true; return; }
+    pager.hidden = false;
+    pager.innerHTML =
+      '<button type="button" data-page="' + (ps.page - 1) + '"' + (ps.page <= 1 ? ' disabled' : '') + '>‹ 上一页</button>' +
+      '<span class="cf-page-info">第 ' + ps.page + ' / ' + ps.pages + ' 页</span>' +
+      '<button type="button" data-page="' + (ps.page + 1) + '"' + (ps.page >= ps.pages ? ' disabled' : '') + '>下一页 ›</button>';
+  }
+  pager.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-page]');
+    if (!btn || btn.disabled) return;
+    runQuery(+btn.dataset.page);
+  });
+
+  /* 拼请求：有文字 → /api/cards/search（q + 筛选参数，无分页）；
+     无文字有条件 → /api/cards/filter（筛选参数 + page）；都无 → null */
+  function buildRequest(page) {
+    var q = input.value.trim();
+    var p = {};
+    Object.keys(filterParams).forEach(function (k) { p[k] = filterParams[k]; });
+    if (q) {
+      p.q = q;
+      return { url: '/api/cards/search?' + new URLSearchParams(p), paged: false, q: q };
+    }
+    if (!Object.keys(p).length) return null;
+    p.page = page || 1;
+    return { url: '/api/cards/filter?' + new URLSearchParams(p), paged: true, q: '' };
+  }
+
+  function runQuery(page) {
+    var req = buildRequest(page);
+    if (!req) {
+      grid.innerHTML = '';
+      renderPager(null);
+      showStatus('输入卡名或选择筛选条件', 'notice');
+      return;
+    }
+    // 与上次成功请求完全相同（含页码）则跳过；失败不计入，可重试
+    if (req.url === lastKey) return;
+    grid.innerHTML = '';
+    renderPager(null);
+    // 首次搜索后收起空态引导，之后由状态行/结果网格接管
+    emptyHint.hidden = true;
+    showStatus('信号接入中…', '');
+    // 请求在途时禁用按钮，防并发重复提交
+    setLoading(true);
+
+    fetch(req.url)
+      .then(function (r) { return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          var msg = res.data.error ||
+            (res.status === 429 ? '操作太频繁了，稍等片刻再试' :
+             res.status === 503 ? '卡库数据维护中，稍后再试' : '搜索失败');
+          showStatus(msg + '，可再次点击搜索重试', 'error');
+          return;
+        }
+        lastKey = req.url;
+        var cards = res.data.cards || [];
+        if (!cards.length) {
+          showStatus(req.q ? '没有找到「' + req.q + '」相关的卡片' : '没有符合条件的卡片', '');
+          return;
+        }
+        if (req.paged) {
+          showStatus('共 ' + (res.data.total || cards.length) + ' 张符合条件的卡片', '');
+          render(cards);
+          renderPager({ page: res.data.page || 1, pages: res.data.pages || 1 });
+        } else {
+          showStatus(res.data.local_snapshot ? res.data.notice :
+                     (res.data.stale ? '上游不可用，展示缓存结果（可能不是最新）' : ''),
+                     (res.data.local_snapshot || res.data.stale) ? 'notice' : '');
+          render(cards);
+        }
+      })
+      .catch(function () { showStatus('网络错误，请稍后再试，可再次点击搜索重试', 'error'); })
+      .then(function () { setLoading(false); });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    runQuery(1);
+  });
+})();
+</script>
+
+<script>
+// 仅桌面端自动聚焦搜索框（移动端避免进页即弹软键盘）
+if (matchMedia('(hover: hover) and (pointer: fine)').matches && innerWidth > 768) {
+  document.getElementById('card-q').focus();
+}
+</script>
+{% endblock %}

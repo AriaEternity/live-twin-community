@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager, empty_state %}
+{% block title %}关注动态 — Live☆Twin 社区{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container container--wide">
+  <a class="back-link" href="{{ url_for('forum.index') }}">‹ 返回论坛</a>
+  <div class="page-header">
+    <h1>关注动态</h1>
+    <p>你关注的人的最新主题</p>
+  </div>
+
+  <!-- 关注动态列表：t = Thread；meta 显示作者 · 板块 · 最近活动时间（bump 排序） -->
+  <div class="thread-list">
+    {% for t in threads.items %}
+    <a href="{{ url_for('forum.thread', thread_id=t.id) }}" class="thread-row">
+      <span class="tr-replies">{{ t.reply_count }}</span>
+      <span class="tr-title">
+        {% if t.is_pinned %}<span class="pin-badge">置顶</span>{% endif %}
+        <span class="tr-text" title="{{ t.title }}">{{ t.title }}</span>
+      </span>
+      <span class="tr-meta"><span class="name-truncate-sm" title="{{ t.author.display_name }}">{{ t.author.display_name }}</span> · {{ t.board.name }} · {{ t.updated_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+    </a>
+    {% else %}
+    {{ empty_state('还没有动态', '去个人空间关注感兴趣的人吧', variant='icon', icon='☆') }}
+    {% endfor %}
+  </div>
+
+  {{ pager(threads, 'forum.following') }}
+</div>
+{% endblock %}

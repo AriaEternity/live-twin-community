@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles, pager %}
+{% block title %}{{ thread.title }} — Live☆Twin 社区{% endblock %}
+
+{% block og %}
+<meta property="og:title" content="{{ thread.title }} — Live☆Twin 社区">
+<meta property="og:description" content="{{ og_desc }}">
+<meta property="og:image" content="{{ og_image }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ request.url }}">
+<meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container">
+  <a class="back-link" href="{{ url_for('forum.board', slug=thread.board.slug) }}">‹ 返回{{ thread.board.name }}</a>
+  <div class="page-header">
+    <h1>{{ thread.title }}</h1>
+    <p style="font-size:12px;opacity:.75;">
+      作者 <a href="{{ url_for('forum.user_profile', user_id=thread.user_id) }}" title="查看 TA 的空间"><span class="name-truncate" title="{{ thread.author.display_name }}">{{ thread.author.display_name }}</span></a> · {{ thread.created_at|bjtime('%Y-%m-%d %H:%M') }}
+      · {{ thread.view_count }} 次浏览 · {{ thread.reply_count }} 条回复
+      {# 已锁定提示改用基模板提供的 .lock-badge #}
+      {% if thread.is_locked %}<span class="lock-badge">已锁定</span>{% endif %}
+    </p>
+
+    {# 收藏入口（主题级，放页头而非每楼点赞区）：仅登录用户渲染 POST 表单；复用 like-btn 幽灵胶囊，已收藏加 .liked 高亮 #}
+    {% if current_user.is_authenticated %}
+    <div class="thread-fav">
+      <form method="post" action="{{ url_for('forum.favorite_thread', thread_id=thread.id, page=posts.page) }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="like-btn {{ 'liked' if is_fav }}" type="submit">{{ '★ 已收藏' if is_fav else '☆ 收藏' }}</button>
+      </form>
+      {% if fav_count > 0 %}<span class="fav-count">★ {{ fav_count }}</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {# 管理员操作条：置顶 / 锁定切换 + 删除整个帖子 #}
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div class="admin-bar">
+      <form method="post" action="{{ url_for('forum.pin_thread', thread_id=thread.id) }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn" type="submit">{{ '取消置顶' if thread.is_pinned else '置顶' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('forum.lock_thread', thread_id=thread.id) }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn" type="submit">{{ '解锁' if thread.is_locked else '锁定' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('forum.delete_thread', thread_id=thread.id) }}" style="display:inline;"
+            onsubmit="return confirm('确认把这条帖子里侧除外？此操作不可通常召唤回场（不可恢复）');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn danger" type="submit">删除帖子</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 回帖列表 -->
+  {% for p in posts.items %}
+  <div class="post" id="post-{{ p.id }}">
+    <div class="post-header">
+      {# 头像：有自定义头像用图片，否则按用户 ID 轮换配色显示首字符 #}
+      {% if p.author.avatar_url %}
+      <img class="avatar-img" src="{{ p.author.avatar_url }}" alt="" width="40" height="40">
+      {% else %}
+      <div class="avatar" style="background:{{ ['#EE5BA6','#4A6FD0','#7CE85A','#B02A6E'][p.user_id % 4] }};">{{ p.author.display_name[0] }}</div>
+      {% endif %}
+      <div>
+        {# 作者名链到个人空间；a.post-user 保持墨色（样式在 base.html） #}
+        <a class="post-user name-truncate" href="{{ url_for('forum.user_profile', user_id=p.user_id) }}" title="{{ p.author.display_name }}">{{ p.author.display_name }}</a>
+        {# 楼主标签改用贴纸风 .badge-op #}
+        {% if p.user_id == thread.user_id %}<span class="badge-op">楼主</span>{% endif %}
+        <span class="post-time">{{ p.created_at|bjtime('%Y-%m-%d %H:%M') }}</span>
+        {# 编辑标记：仅首帖会被编辑（回复不可编辑、edited_at 恒为空），有值才显示 #}
+        {% if p.edited_at %}<div class="post-edited">最后修改于 {{ p.edited_at|bjtime('%Y-%m-%d %H:%M') }}</div>{% endif %}
+      </div>
+      <span style="margin-left:auto;font-size:11px;opacity:.75;">#{{ loop.index + (posts.page - 1) * posts.per_page }}</span>
+    </div>
+    {% if p.parent %}
+    <div style="font-size:12px;opacity:.7;margin-bottom:8px;">
+      回复 <a href="#post-{{ p.parent.id }}" title="@{{ p.parent.author.display_name }}">@<span class="name-truncate-sm">{{ p.parent.author.display_name }}</span></a>
+    </div>
+    {% endif %}
+    {# 引用块：被引用楼层可能已删除（quoted 为 None），必须判空；点击跳到对应楼层锚点 #}
+    {% if p.quoted is not none %}
+    <a class="quote-block" href="#post-{{ p.quoted.id }}">
+      <span class="quote-author name-truncate-sm" title="{{ p.quoted.author.display_name }}">{{ p.quoted.author.display_name }}</span>：{{ p.quoted.content[:60] }}{% if p.quoted.content|length > 60 %}…{% endif %}
+    </a>
+    {% endif %}
+    <div class="post-body">{{ p.content|render_content }}</div>
+
+    {# 图片附件：点击走站内灯箱预览（JS 拦截），无 JS 时回退为原直链 #}
+    {% if p.attachments %}
+    <div class="post-attachments">
+      {% for a in p.attachments %}
+      <a class="attach-zoom" href="{{ url_for('main.uploaded_file', filename=a.filename) }}">
+        <img src="{{ url_for('main.uploaded_file', filename=a.filename) }}" alt="附图" loading="lazy">
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 登录用户可见作者签名 #}
+    {% if current_user.is_authenticated and p.author.signature %}
+    <div class="sig">{{ p.author.signature }}</div>
+    {% endif %}
+
+    {# 每帖底部操作行：点赞 + 回复此楼 + 引用 + （首帖）编辑；管理删除单独第二行分级 #}
+    <div class="post-actions">
+      {% if current_user.is_authenticated %}
+      <form method="post" action="{{ url_for('forum.like_post', post_id=p.id) }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="like-btn {{ 'liked' if p.id in liked_post_ids }}" type="submit">★ {{ like_counts.get(p.id, 0) }}</button>
+      </form>
+      {% else %}
+      {# 未登录不渲染点赞 POST 表单，引导登录后回跳本页；🔒 图标提示需登录 #}
+      <a class="like-btn" href="{{ url_for('auth.login', next=url_for('forum.thread', thread_id=thread.id, page=posts.page)) }}"
+         title="登录后点赞" aria-label="登录后点赞">★ {{ like_counts.get(p.id, 0) }} <span class="like-lock" aria-hidden="true">🔒</span></a>
+      {% endif %}
+      {% if current_user.is_authenticated and not (loop.first and posts.page == 1) %}
+      <button class="admin-btn reply-to-floor" type="button"
+              data-post-id="{{ p.id }}"
+              data-user="{{ p.author.display_name }}"
+              data-floor="{{ loop.index + (posts.page - 1) * posts.per_page }}">回复此楼</button>
+      {% endif %}
+      {# 引用按钮：所有楼层可引用（含首帖），仅回复框存在时（已登录且未锁定）渲染 #}
+      {% if current_user.is_authenticated and not thread.is_locked %}
+      <button class="admin-btn quote-floor" type="button"
+              data-post-id="{{ p.id }}"
+              data-user="{{ p.author.display_name }}"
+              data-floor="{{ loop.index + (posts.page - 1) * posts.per_page }}"
+              data-snippet="{{ p.content[:60]|replace('\n', ' ') }}">引用</button>
+      {% endif %}
+      {# 首帖编辑入口：仅作者本人或管理员可见 #}
+      {% if loop.first and posts.page == 1 and current_user.is_authenticated and (current_user.id == thread.user_id or current_user.is_admin) %}
+      <a class="admin-btn" href="{{ url_for('forum.edit_thread', thread_id=thread.id) }}">编辑</a>
+      {% endif %}
+      {# 删除自己的回帖：仅本人可见（首帖除外——首帖=主题，删整帖走管理通道）；管理员删他人楼层走下面管理行 #}
+      {% if current_user.is_authenticated and current_user.id == p.user_id and not (loop.first and posts.page == 1) %}
+      <form method="post" action="{{ url_for('forum.delete_post', post_id=p.id) }}" style="display:inline;"
+            onsubmit="return confirm('确定删除这条回复吗？删除后无法恢复');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn danger" type="submit">删除</button>
+      </form>
+      {% endif %}
+    </div>
+    {# 管理操作独立第二行：与普通操作视觉分级（虚线分隔 + 小字标签 + 紫灰描边）；管理员自己的楼层用上面普通删除，不重复显示 #}
+    {% if current_user.is_authenticated and current_user.is_admin and current_user.id != p.user_id and not (loop.first and posts.page == 1) %}
+    <div class="post-admin">
+      <span class="post-admin-label">管理操作</span>
+      <form method="post" action="{{ url_for('forum.delete_post', post_id=p.id) }}" style="display:inline;"
+            onsubmit="return confirm('确认把这层楼里侧除外？不可恢复');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="admin-btn danger" type="submit">删除</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- 分页 -->
+  {{ pager(posts, 'forum.thread', thread_id=thread.id) }}
+
+  <!-- 回复框 -->
+  {% if current_user.is_authenticated and not thread.is_locked %}
+  <div style="margin-top:28px;padding:22px;border-radius:14px;background:rgba(255,255,255,.7);border:1px solid rgba(21,16,43,.12);">
+    <p style="font-weight:700;font-size:14px;margin-bottom:12px;">回复</p>
+    <form method="post" action="{{ url_for('forum.reply', thread_id=thread.id, page=posts.page) }}" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="parent_post_id" id="parent-post-id" value="">
+      <input type="hidden" name="quote_post_id" id="quote-post-id" value="">
+      {# 楼中楼回复目标提示条：点「回复此楼」后显示，可随时取消回到普通盖楼 #}
+      <div id="reply-target" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(238,91,166,.12);border:1px solid rgba(238,91,166,.35);font-size:13px;align-items:center;gap:8px;">
+        <span>回复 #<span id="reply-target-floor"></span> @<span id="reply-target-user" class="name-truncate-sm"></span></span>
+        <button id="reply-cancel" type="button" class="admin-btn" style="margin-left:auto;">× 取消</button>
+      </div>
+      {# 引用目标提示条：点楼层「引用」后显示，可随时取消 #}
+      <div id="quote-target" style="display:none;margin-bottom:8px;padding:6px 10px;border-radius:10px;background:rgba(74,111,208,.12);border:1px solid rgba(74,111,208,.35);font-size:13px;align-items:center;gap:8px;">
+        <span style="min-width:0;">引用 #<span id="quote-target-floor"></span> <span id="quote-target-user" class="name-truncate-sm"></span>：<span id="quote-target-snippet" style="opacity:.8;"></span></span>
+        <button id="quote-cancel" type="button" class="admin-btn" style="margin-left:auto;flex-shrink:0;">× 取消</button>
+      </div>
+      <div class="editor-tools">
+        <button type="button" class="emote-btn" data-target="reply-content" aria-label="插入表情"><span class="emote-btn-icon" aria-hidden="true">😀</span>表情</button>
+      </div>
+      <textarea class="form-textarea" name="content" id="reply-content" placeholder="写下你的回复…" required minlength="2" maxlength="10000" aria-label="回复内容">{{ reply_content or '' }}</textarea>
+      <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+        <label>附图（可选，最多 3 张）</label>
+        <input class="form-input" type="file" name="images" accept="image/png,image/jpeg,image/gif,image/webp" multiple>
+      </div>
+      <button class="btn btn-primary" type="submit" style="margin-top:12px;">发表回复</button>
+    </form>
+  </div>
+  {% elif thread.is_locked %}
+  <p style="text-align:center;opacity:.7;padding:20px 0;">该帖子已被锁定</p>
+  {% else %}
+  <p style="text-align:center;opacity:.7;padding:20px 0;">
+    请先 <a href="{{ url_for('auth.login', next=url_for('forum.thread', thread_id=thread.id, page=posts.page)) }}">登录</a> 后回复
+  </p>
+  {% endif %}
+  <!-- 图片灯箱：点击附图浮层看大图，支持下载；不跳新窗口，手机端无回退陷阱 -->
+  <div id="img-lightbox" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
+    <button id="lb-close" class="lb-btn" type="button" aria-label="关闭预览">×</button>
+    <img id="lb-img" alt="附图大图">
+    <a id="lb-download" class="lb-btn" href="#" download>⤓ 下载原图</a>
+  </div>
+
+  <!-- 表情选择器：结构由 js/emotes.js 驱动（清单 /img/emotes/emotes.json） -->
+  <div class="emote-modal" hidden>
+    <div class="emote-dialog" role="dialog" aria-modal="true" aria-label="选择表情">
+      <div class="emote-head">
+        <p class="emote-title">选择表情</p>
+        <button class="emote-close" type="button" aria-label="关闭表情面板">×</button>
+      </div>
+      <div class="emote-tabs" role="tablist"></div>
+      <div class="emote-grid"></div>
+      <p class="emote-empty" hidden>暂无可用表情</p>
+    </div>
+  </div>
+  <script src="/js/emotes.js"></script>
+
+  <style>
+    /* ── 收藏行（页头主题级）：与点赞同款幽灵胶囊 + 计数小字 ── */
+    .thread-fav { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .fav-count { font-size: 12px; font-weight: 700; opacity: .78; }
+
+    /* ── 楼层操作区（批次 3 重组）：普通操作可换行；管理操作独立第二行并视觉降级 ── */
+    .post-actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .post-admin {
+      margin-top: 8px; padding-top: 8px;
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      border-top: 1px dashed rgba(255,59,92,.25);
+    }
+    .post-admin-label { font-size: 11px; font-weight: 700; opacity: .78; }
+    .post-admin .admin-btn { border-color: rgba(21,16,43,.35); font-size: 11px; }
+    .like-lock { font-size: 10px; }
+    /* 楼层操作按钮移动端触控目标 ≥44px */
+    @media (max-width: 600px) {
+      .post-actions .like-btn, .post-actions .admin-btn, .post-admin .admin-btn { min-height: 44px; }
+      .thread-fav .like-btn { min-height: 44px; }
+    }
+
+    /* ── 引用/回复跳转目标楼层高亮：描边常亮（:target 期间）+ 呼吸一次后消退 ── */
+    .post:target { outline: 2px solid rgba(238,91,166,.5); outline-offset: 4px; }
+    @keyframes quotePulse {
+      0% { box-shadow: 0 0 0 0 rgba(238,91,166,.45); }
+      100% { box-shadow: 0 0 0 16px rgba(238,91,166,0); }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      /* 不带 fill：动画结束立即还权，避免残留 transform/box-shadow（踩坑 #26） */
+      .post:target { animation: quotePulse 2s ease-out; }
+    }
+
+    /* 灯箱浮层：压过 sticky 顶栏（z-index:100） */
+    #img-lightbox {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(15,10,30,.88);
+      display: flex; align-items: center; justify-content: center;
+      overscroll-behavior: contain;
+    }
+    #img-lightbox[hidden] { display: none; }
+    #lb-img {
+      max-width: 92vw; max-height: 82vh; object-fit: contain;
+      border-radius: 12px; box-shadow: 0 12px 48px rgba(0,0,0,.5);
+    }
+    .lb-btn {
+      position: fixed; z-index: 201;
+      padding: 10px 16px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.4);
+      background: rgba(21,16,43,.6); color: #fff;
+      font-size: 15px; font-family: var(--f-cn);
+      cursor: pointer; text-decoration: none;
+      min-height: 40px; display: inline-flex; align-items: center;
+    }
+    #lb-close { top: 16px; right: 16px; font-size: 20px; }
+    #lb-download { bottom: 20px; left: 50%; transform: translateX(-50%); }
+    @media (hover: hover) and (pointer: fine) {
+      .lb-btn:hover { background: rgba(238,91,166,.75); border-color: #fff; }
+    }
+    /* 桌面端附图缩略图加放大镜手感提示 */
+    @media (hover: hover) and (pointer: fine) {
+      .attach-zoom { cursor: zoom-in; }
+    }
+  </style>
+</div>
+
+<script>
+(function () {
+  const parentInput = document.getElementById('parent-post-id');
+  const replyBox = document.getElementById('reply-content');
+  const targetBar = document.getElementById('reply-target');
+  const targetFloor = document.getElementById('reply-target-floor');
+  const targetUser = document.getElementById('reply-target-user');
+  const cancelBtn = document.getElementById('reply-cancel');
+  const originalPlaceholder = replyBox ? replyBox.placeholder : '';
+
+  document.querySelectorAll('.reply-to-floor').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      parentInput.value = btn.dataset.postId;
+      replyBox.placeholder = '回复 #' + btn.dataset.floor + ' @' + btn.dataset.user + '：';
+      targetFloor.textContent = btn.dataset.floor;
+      targetUser.textContent = btn.dataset.user;
+      targetUser.title = btn.dataset.user;
+      targetBar.style.display = 'flex';
+      replyBox.focus();
+      replyBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  // 取消楼中楼回复：清空目标、隐藏提示条、还原占位符，回到普通盖楼
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function () {
+      parentInput.value = '';
+      replyBox.placeholder = originalPlaceholder;
+      targetBar.style.display = 'none';
+      replyBox.focus();
+    });
+  }
+
+  // ── 楼层引用：点「引用」把 quote_post_id 写进隐藏域并显示提示条 ──
+  const quoteInput = document.getElementById('quote-post-id');
+  const quoteBar = document.getElementById('quote-target');
+  const quoteFloor = document.getElementById('quote-target-floor');
+  const quoteUser = document.getElementById('quote-target-user');
+  const quoteSnippet = document.getElementById('quote-target-snippet');
+  const quoteCancel = document.getElementById('quote-cancel');
+
+  document.querySelectorAll('.quote-floor').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!quoteInput || !replyBox) return;
+      quoteInput.value = btn.dataset.postId;
+      quoteFloor.textContent = btn.dataset.floor;
+      quoteUser.textContent = btn.dataset.user;
+      quoteUser.title = btn.dataset.user;
+      quoteSnippet.textContent = btn.dataset.snippet + '…';
+      quoteBar.style.display = 'flex';
+      replyBox.focus();
+      replyBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+
+  // 取消引用：清空隐藏域、隐藏提示条
+  if (quoteCancel) {
+    quoteCancel.addEventListener('click', function () {
+      quoteInput.value = '';
+      quoteBar.style.display = 'none';
+      replyBox.focus();
+    });
+  }
+
+  // ── 图片灯箱 ──────────────────────────────
+  const lightbox = document.getElementById('img-lightbox');
+  const lbImg = document.getElementById('lb-img');
+  const lbClose = document.getElementById('lb-close');
+  const lbDownload = document.getElementById('lb-download');
+  let lbScrollY = 0;
+
+  function lbLock() {
+    // iOS 旧版不认 body overflow:hidden，用 position:fixed 锁滚（踩坑 #20 同款手法）
+    lbScrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = -lbScrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+  }
+  function lbUnlock() {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    window.scrollTo(0, lbScrollY);
+  }
+  function lbOpen(url) {
+    lbImg.src = url;
+    lbDownload.href = url;
+    lightbox.hidden = false;
+    lbLock();
+    lbClose.focus();
+  }
+  function lbHide() {
+    lightbox.hidden = true;
+    lbImg.src = '';
+    lbUnlock();
+  }
+
+  document.querySelectorAll('.attach-zoom').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      lbOpen(link.href);
+    });
+  });
+  lbClose.addEventListener('click', lbHide);
+  // 点空白背景关闭；点在图或按钮上不关
+  lightbox.addEventListener('click', function (e) {
+    if (e.target === lightbox) lbHide();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !lightbox.hidden) lbHide();
+  });
+
+  // 提交后清空回复目标
+  if (replyBox && replyBox.form) {
+    replyBox.form.addEventListener('submit', function () {
+      // 正常提交后页面会刷新，这里无需处理；保留钩子供未来扩展
+    });
+  }
+})();
+</script>
+{% endblock %}

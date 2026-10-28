@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ui_styles %}
+{% block title %}{{ deck.title }} · 卡组 — Live☆Twin 社区{% endblock %}
+
+<!-- OG 分享标签：覆盖 base 默认块，QQ/微信贴链接时按此解析成卡片（同论坛帖子模式） -->
+{% block og %}
+<meta property="og:title" content="{{ deck.title }} · 卡组 — Live☆Twin 社区">
+<meta property="og:description" content="{{ og_desc }}">
+<meta property="og:image" content="{{ url_for('main.card_image', filename='cropped/82699999.jpg', _external=True) }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ request.url }}">
+<meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block content %}
+{{ ui_styles() }}
+<div class="container container--wide">
+  <a class="back-link" href="{{ url_for('decks.list') }}">‹ 返回卡组广场</a>
+
+  <!-- 卡组头部：标题 + 作者/时间/计数 + 编辑删除操作 -->
+  <div class="deck-detail-head">
+    <h1 class="ddh-title" title="{{ deck.title }}">{{ deck.title }}</h1>
+    <p class="ddh-meta">
+      <a class="ddh-author" href="{{ url_for('forum.user_profile', user_id=deck.author_id) }}" title="{{ deck.author.display_name }}">{{ deck.author.display_name }}</a>
+      · 更新于 {{ deck.updated_at|bjtime('%Y-%m-%d %H:%M') }}
+      · 主{{ zones[0][1]|length }} · 额{{ zones[1][1]|length }} · 副{{ zones[2][1]|length }}
+    </p>
+    {# 容器用 div 不用 p：form 塞 p 会被浏览器自动闭合弹出容器（踩坑 #40） #}
+    <div class="ddh-actions">
+      <button type="button" class="btn-sm ddh-share" id="dd-share">🔗 分享</button>
+      {% if can_edit %}
+      <a class="btn-sm btn-sm-fill" href="{{ url_for('decks.edit', deck_id=deck.id) }}">✎ 编辑</a>
+      {% endif %}
+      {% if can_delete %}
+      <form method="post" action="{{ url_for('decks.delete', deck_id=deck.id) }}" style="display:inline;"
+            onsubmit="return confirm('确定删除这套卡组吗？此操作不可恢复。');">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <button class="btn-sm ddh-delete" type="submit">删除</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 简介：白底卡片，保留换行 -->
+  {% if deck.description %}
+  <div class="deck-desc">{{ deck.description }}</div>
+  {% endif %}
+
+  <!-- 三个分区：相邻同 id 的卡合并成一张图 + ×N 角标 -->
+  {% for zone_name, entries in zones %}
+  <section class="deck-zone">
+    <h2 class="dz-title">{{ zone_name }} <span class="dz-count">（{{ entries|length }}）</span></h2>
+    {% if entries %}
+    {% set ns = namespace(groups=[], last_id=0) %}
+    {% for e in entries %}
+      {% if ns.groups and ns.last_id == e.id %}
+        {% set g = ns.groups[-1] %}
+        {% set _ = g.update({'count': g.count + 1}) %}
+      {% else %}
+        {% set _ = ns.groups.append({'id': e.id, 'name': e.name, 'count': 1}) %}
+      {% endif %}
+      {% set ns.last_id = e.id %}
+    {% endfor %}
+    <div class="dz-grid">
+      {% for g in ns.groups %}
+      <div class="dz-card" title="{{ g.name }}{% if g.count > 1 %} ×{{ g.count }}{% endif %}（点击查看详情）"
+           role="button" tabindex="0" data-card-id="{{ g.id }}">
+        <img src="https://images.ygoprodeck.com/images/cards_small/{{ g.id }}.jpg" alt="{{ g.name }}"
+             width="268" height="391" loading="lazy"
+             onerror="this.onerror=null;this.dataset.broken='1';this.src='/img/card_pre_release.png'">
+        {% if g.count > 1 %}<span class="dz-x" aria-label="{{ g.count }} 张">×{{ g.count }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="dz-empty">（这个分区还是空的）</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+
+<!-- 卡片详情弹窗：点 .dz-card 后 fetch 搜卡 API 渲染；参照论坛公告弹窗（.ann-modal）写法 -->
+<div class="cmodal" id="card-modal" role="dialog" aria-modal="true" aria-label="卡片详情" hidden>
+  <div class="cmodal-dialog">
+    <button type="button" class="cmodal-close" id="cm-close" aria-label="关闭">×</button>
+    <div class="cmodal-body" id="cm-body"></div>
+  </div>
+</div>
+
+<style>
+/* 卡组头部 */
+.deck-detail-head {
+  padding: 20px 22px; border-radius: 14px;
+  background: rgba(255,255,255,.7); border: 1px solid rgba(21,16,43,.1);
+}
+.ddh-title { font-size: clamp(20px, 3vw, 28px); font-weight: 900; word-break: break-word; }
+.ddh-meta { font-size: 12px; opacity: .78; margin-top: 6px; }
+.ddh-author { color: var(--ksk-primary); text-decoration: none; font-weight: 700; }
+@media (hover: hover) and (pointer: fine) {
+  .ddh-author:hover { text-decoration: underline; }
+}
+.ddh-actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* 页内 btn-sm 基础外观（全局 .btn-sm 基础样式仅存在于顶栏上下文，这里补齐，同个人空间手法） */
+.ddh-actions .btn-sm {
+  display: inline-flex; align-items: center;
+  padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  font-family: var(--f-cn); cursor: pointer; text-decoration: none;
+  transition: transform .2s;
+}
+.ddh-actions .btn-sm-fill { background: linear-gradient(90deg, var(--ksk-primary), var(--lil-primary)); color: #fff; border: 1px solid transparent; }
+.ddh-actions .ddh-share { border: 1px solid var(--lil-primary); color: var(--lil-primary); background: rgba(255,255,255,.6); }
+.ddh-actions .ddh-delete { border: 1px solid var(--live-red); color: var(--live-red); background: rgba(255,255,255,.6); }
+@media (hover: hover) and (pointer: fine) {
+  .ddh-actions .btn-sm:hover { transform: scale(1.05); text-decoration: none; }
+}
+
+/* 简介卡片：白底，保留换行 */
+.deck-desc {
+  margin-top: 14px; padding: 16px 20px; border-radius: 14px;
+  background: rgba(255,255,255,.85); border: 1px solid rgba(21,16,43,.1);
+  font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-break: break-word;
+}
+
+/* 分区 */
+.deck-zone { margin-top: 26px; }
+.dz-title { font-size: 16px; font-weight: 900; margin-bottom: 12px; }
+.dz-count { font-size: 12px; font-weight: 400; opacity: .65; }
+.dz-empty { font-size: 13px; opacity: .7; }
+/* 卡图网格：移动 4-5 张一排，桌面 8-10 张一排 */
+.dz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.dz-card { position: relative; border-radius: 6px; overflow: hidden; }
+.dz-card img {
+  width: 100%; height: auto; aspect-ratio: 268/391; display: block;
+  background: #E8E4F0; border-radius: 6px;
+  transition: transform .2s;
+}
+/* 悬停放大（仅鼠标悬停设备，防触屏 sticky hover，踩坑 #19） */
+@media (hover: hover) and (pointer: fine) {
+  .dz-card img:hover { transform: scale(1.05); }
+}
+/* ×N 角标：绝对定位浮层显式 z-index:2，防被同容器 img 盖住（踩坑 #17） */
+.dz-x {
+  position: absolute; right: 3px; bottom: 3px; z-index: 2;
+  font-size: 11px; font-weight: 900; color: #fff;
+  background: rgba(21,16,43,.78); border-radius: 6px; padding: 1px 5px;
+  pointer-events: none;
+}
+@media (min-width: 901px) {
+  .dz-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+}
+@media (max-width: 600px) {
+  .deck-detail-head { padding: 16px; }
+  /* 移动端触控目标 ≥44px */
+  .ddh-actions .btn-sm { min-height: 44px; padding: 9px 16px; }
+}
+
+/* 卡图可点击：鼠标手型 + 键盘聚焦环 */
+.dz-card { cursor: pointer; }
+.dz-card:focus-visible { outline: 2px solid var(--ksk-primary); outline-offset: 2px; }
+
+/* 卡片详情弹窗：复用公告弹窗的遮罩/对话框语言（z-index 300 压过 sticky 顶栏） */
+.cmodal {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(15,10,30,.72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; overscroll-behavior: contain;
+}
+.cmodal[hidden] { display: none; }
+.cmodal-dialog {
+  position: relative;
+  width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto;
+  padding: 20px; border-radius: 14px; background: rgba(255,255,255,.96);
+  border: 1px solid rgba(21,16,43,.1);
+}
+.cmodal-close {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid rgba(21,16,43,.15); background: rgba(255,255,255,.9);
+  font-size: 20px; line-height: 1; cursor: pointer; color: inherit;
+}
+.cmodal-close:focus-visible { outline: 2px solid var(--ksk-primary); outline-offset: 2px; }
+/* 弹窗正文：左图右文（窄屏上下排） */
+.cm-layout { display: flex; gap: 16px; align-items: flex-start; }
+/* height:auto 压过 JS 写入的 height 属性（否则 aspect-ratio 失效，图被拉成 168×614）；
+   object-fit:contain 兜底真实比例与 421/614 有细微差异的图，只留白不变形 */
+.cm-img {
+  width: 168px; height: auto; flex: none; aspect-ratio: 421/614; object-fit: contain;
+  border-radius: 8px; background: #E8E4F0; display: block;
+}
+.cm-info { min-width: 0; }
+.cm-name { font-size: 18px; font-weight: 900; word-break: break-word; margin-right: 36px; }
+.cm-types {
+  display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(90deg, var(--ksk-primary), var(--lil-primary));
+  border-radius: 999px; padding: 2px 10px;
+}
+.cm-desc, .cm-pdesc {
+  margin-top: 12px; font-size: 13px; line-height: 1.8;
+  white-space: pre-wrap; word-break: break-word;
+}
+.cm-pdesc {
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(21,16,43,.05); border: 1px dashed rgba(21,16,43,.2);
+}
+.cm-pdesc-label { display: block; font-weight: 900; font-size: 12px; opacity: .75; margin-bottom: 4px; }
+.cm-loading, .cm-error { padding: 40px 0; text-align: center; font-size: 14px; opacity: .8; }
+@media (max-width: 600px) {
+  .cm-layout { flex-direction: column; align-items: center; }
+  .cm-img { width: min(60vw, 220px); }
+  .cm-name { margin-right: 0; }
+  .cm-info { width: 100%; }
+}
+</style>
+
+<script>
+(function () {
+  var modal = document.getElementById('card-modal');
+  var body = document.getElementById('cm-body');
+  var closeBtn = document.getElementById('cm-close');
+  var scrollY = 0;
+  var fetchSeq = 0; // 连点不同卡时只认最后一次请求，防止旧响应覆盖新内容
+
+  // 背景滚锁（踩坑 #20：iOS 旧版不认 body overflow:hidden，用 position:fixed）
+  function lockScroll() {
+    scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = -scrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+  }
+  function unlockScroll() {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    window.scrollTo(0, scrollY);
+  }
+
+  function closeModal() {
+    if (modal.hidden) return;
+    modal.hidden = true;
+    fetchSeq++; // 作废在途请求
+    unlockScroll();
+  }
+
+  // 全部用 textContent 渲染，API 数据不拼 HTML，防注入
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function renderCard(card) {
+    body.textContent = '';
+    var layout = el('div', 'cm-layout');
+    var img = document.createElement('img');
+    img.className = 'cm-img';
+    // 先行卡等上游暂未收录的图：404 时换本地占位图（onerror 置 null 防占位图本身失败时死循环）
+    img.onerror = function () { this.onerror = null; this.src = '/img/card_pre_release.png'; };
+    img.src = 'https://images.ygoprodeck.com/images/cards/' + card.id + '.jpg';
+    img.alt = card.sc_name || card.cn_name || ('卡片 ' + card.id);
+    img.width = 421; img.height = 614;
+    layout.appendChild(img);
+    var info = el('div', 'cm-info');
+    info.appendChild(el('h3', 'cm-name', card.sc_name || card.cn_name || card.en_name || ('卡片 ' + card.id)));
+    if (card.types) info.appendChild(el('span', 'cm-types', card.types));
+    if (card.pdesc) {
+      var pd = el('div', 'cm-pdesc');
+      pd.appendChild(el('span', 'cm-pdesc-label', '灵摆效果'));
+      pd.appendChild(document.createTextNode(card.pdesc));
+      info.appendChild(pd);
+    }
+    if (card.desc) info.appendChild(el('div', 'cm-desc', card.desc));
+    layout.appendChild(info);
+    body.appendChild(layout);
+  }
+
+  function openModal(cardId) {
+    modal.hidden = false;
+    lockScroll();
+    closeBtn.focus();
+    body.textContent = '';
+    body.appendChild(el('div', 'cm-loading', '卡片资料加载中…'));
+
+    var seq = ++fetchSeq;
+    fetch('/api/cards/search?q=' + encodeURIComponent(cardId), { credentials: 'same-origin' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (seq !== fetchSeq) return;
+        var cards = (data && data.cards) || [];
+        var card = null;
+        for (var i = 0; i < cards.length; i++) {
+          if (String(cards[i].id) === String(cardId)) { card = cards[i]; break; }
+        }
+        // 先行卡旧 id：百鸽已改按正式 id 收录，严格匹配不到时回退第一条
+        // （按卡号搜索返回的就是这张卡本身；此时渲染用的正式 id 连大图也能正常出）
+        if (!card && cards.length) card = cards[0];
+        if (card) {
+          renderCard(card);
+        } else {
+          body.textContent = '';
+          body.appendChild(el('div', 'cm-error', '没有找到这张卡的资料，可能暂未收录。'));
+        }
+      })
+      .catch(function () {
+        if (seq !== fetchSeq) return;
+        body.textContent = '';
+        body.appendChild(el('div', 'cm-error', '加载失败，请检查网络后再试一次。'));
+      });
+  }
+
+  // 点击卡图（含 ×N 角标，角标已 pointer-events:none）打开弹窗
+  document.querySelectorAll('.dz-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      openModal(card.getAttribute('data-card-id'));
+    });
+    // 键盘可及：Enter / 空格触发
+    card.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        openModal(card.getAttribute('data-card-id'));
+      }
+    });
+  });
+
+  closeBtn.addEventListener('click', closeModal);
+  // 点遮罩（对话框外）关闭
+  modal.addEventListener('click', function (ev) {
+    if (ev.target === modal) closeModal();
+  });
+  // Esc 关闭
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !modal.hidden) closeModal();
+  });
+
+  // ── 网格 404 图自愈 ──
+  // 占位图只是过渡：按旧 id（先行卡临时卡号）搜百鸽，拿到正式 id 就换真图；
+  // 搜不到/正式 id 未变/网络异常则保持占位图。每 id 只解析一次。
+  var upgrading = {};
+  function queueUpgrade(oldId) {
+    if (!oldId || upgrading[oldId]) return;
+    upgrading[oldId] = true;
+    fetch('/api/cards/search?q=' + encodeURIComponent(oldId), { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var cards = (d && d.cards) || [];
+        var first = cards[0];
+        // 第一条仍是旧 id：百鸽还没转正，图床就是没图，放弃升级
+        if (!first || String(first.id) === String(oldId)) return;
+        var newSrc = 'https://images.ygoprodeck.com/images/cards_small/' + first.id + '.jpg';
+        document.querySelectorAll('.dz-card img[data-broken]').forEach(function (img) {
+          if (img.closest('.dz-card').getAttribute('data-card-id') !== String(oldId)) return;
+          // 新图万一也 404，回退占位图（此时 data-broken 保留，但本 id 已试过不会重复解析）
+          img.onerror = function () { this.onerror = null; this.src = '/img/card_pre_release.png'; };
+          img.src = newSrc;
+        });
+      })
+      .catch(function () { /* 网络失败保持占位图 */ });
+  }
+  // 懒加载图的 error 发生在脚本执行之后：捕获阶段监听（inline onerror 照样先换成占位图）
+  document.addEventListener('error', function (ev) {
+    var t = ev.target;
+    if (t && t.tagName === 'IMG' && !t.dataset.broken) {
+      var cell = t.closest('.dz-card');
+      if (cell) queueUpgrade(cell.getAttribute('data-card-id'));
+    }
+  }, true);
+  // 脚本执行前就已 404 的图：inline onerror 已标记 data-broken，扫一遍补解析
+  document.querySelectorAll('.dz-card img[data-broken]').forEach(function (img) {
+    queueUpgrade(img.closest('.dz-card').getAttribute('data-card-id'));
+  });
+
+  // 分享：复制构筑链接（QQ/微信粘贴后按页面 OG 标签解析成卡片）
+  var shareBtn = document.getElementById('dd-share');
+  function notifyShare(msg) {
+    if (window.toast) { window.toast(msg, 'info'); } else { alert(msg); }
+  }
+  // 老浏览器/非安全上下文兜底：textarea + execCommand
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  shareBtn.addEventListener('click', function () {
+    var url = location.origin + location.pathname;
+    function done() { notifyShare('链接已复制，去 QQ 粘贴就能生成卡片☆'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { legacyCopy(url); done(); });
+    } else {
+      legacyCopy(url);
+      done();
+    }
+  });
+})();
+</script>
+{% endblock %}

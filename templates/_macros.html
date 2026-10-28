@@ -1,0 +1,142 @@
+{# ═══════════════════════════════════════════════════════════
+   共享 UI 宏（批次 3）：分页胶囊 pager + 空态 empty_state
+   用法：
+     {% from "_macros.html" import ui_styles, pager, empty_state %}
+     每个用到的模板在 content 块里调用一次 {{ ui_styles() }} 注入样式。
+   说明：样式必须走 ui_styles() 宏输出——Jinja 的 from/import 只导入宏，
+   不会渲染被导入文件的顶层内容，所以 <style> 不能直接裸放在本文件顶部。
+   pager 的多余 URL 参数走 Jinja 宏特殊变量 kwargs（调用处直接写关键字参数）。
+   ═══════════════════════════════════════════════════════════ #}
+
+{% macro ui_styles() %}
+<style>
+  /* ── 分页胶囊（_macros.html pager）── */
+  .pg { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 24px 0 4px; font-size: 13px; }
+  /* 页码区可横向滚动，防 360px 窄屏溢出 */
+  .pg-nums { display: flex; align-items: center; gap: 6px; overflow-x: auto; max-width: 100%; padding: 2px; }
+  .pg-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 36px; min-width: 36px; padding: 0 12px; border-radius: 999px;
+    background: rgba(255,255,255,.78); border: 1px solid rgba(21,16,43,.18);
+    color: var(--ink); font-weight: 700; white-space: nowrap; text-decoration: none;
+    transition: border-color var(--dur-2, .2s), box-shadow var(--dur-2, .2s), transform var(--dur-2, .2s);
+  }
+  /* 浮起仅鼠标设备生效，防触屏 sticky hover（踩坑 #19） */
+  @media (hover: hover) and (pointer: fine) {
+    a.pg-btn:hover { border-color: rgba(238,91,166,.5); box-shadow: 0 4px 12px rgba(238,91,166,.18); transform: translateY(-1px); }
+  }
+  /* 当前页：粉蓝渐变实心（与 .btn-primary 同款渐变） */
+  .pg-btn.is-current {
+    background: linear-gradient(90deg, var(--ksk-primary), var(--lil-primary));
+    border-color: transparent; color: #fff;
+    box-shadow: 0 6px 16px rgba(238,91,166,.3);
+  }
+  /* 无上一页/下一页时的占位（不消失，防布局跳动） */
+  .pg-btn.is-disabled { opacity: .6; cursor: default; }
+  .pg-ellipsis { padding: 0 2px; opacity: .6; user-select: none; }
+  /* 页码状态：视觉隐藏，屏幕阅读器可读（兼作「N / M」机器可读锚点） */
+  .pg-status {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  /* 移动端触控目标 ≥44px */
+  @media (max-width: 600px) {
+    .pg-btn { height: 44px; min-width: 44px; }
+  }
+
+  /* ── 空态（_macros.html empty_state）：纯 CSS 双子卡背，与搜卡页同款，无外链依赖 ── */
+  .empty-state { text-align: center; padding: 52px 0 46px; }
+  .empty-cards { display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin-bottom: 20px; }
+  .empty-cards i {
+    width: 56px; height: 82px; border-radius: 8px; font-style: normal;
+    display: grid; place-items: center; font-size: 20px; color: rgba(255,255,255,.92);
+    border: 2px solid rgba(255,255,255,.75);
+    box-shadow: 0 6px 16px rgba(21,16,43,.18);
+    /* 基础姿态走 --base 变量：待机浮动动画在其上叠加 translateY，互不覆盖 */
+    transform: var(--base, translateY(0));
+  }
+  .empty-cards i:nth-child(1) { background: linear-gradient(160deg, var(--ksk-primary), var(--ksk-deep)); --base: rotate(-8deg) translateY(5px); }
+  .empty-cards i:nth-child(2) { background: linear-gradient(160deg, var(--bg3), var(--bg1)); --base: translateY(-7px); box-shadow: 0 10px 22px rgba(21,16,43,.28), 0 0 18px rgba(255,92,225,.3); }
+  .empty-cards i:nth-child(3) { background: linear-gradient(160deg, var(--lil-primary), var(--lil-deep)); --base: rotate(8deg) translateY(5px); }
+  .empty-icon { font-size: 38px; line-height: 1; margin-bottom: 14px; }
+  .empty-title { font-size: 15px; font-weight: 700; opacity: .8; }
+  .empty-desc { font-size: 12px; opacity: .7; margin-top: 5px; }
+  .empty-link { display: inline-block; margin-top: 16px; }
+  @keyframes cardFloat {
+    0%, 100% { transform: var(--base, translateY(0)); }
+    50% { transform: var(--base, translateY(0)) translateY(-7px); }
+  }
+  /* 通用入场动画：被多个页面复用（如搜卡结果卡 stagger 入场） */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: no-preference) {
+    .empty-cards i { animation: cardFloat 3.6s ease-in-out infinite; }
+    .empty-cards i:nth-child(2) { animation-delay: -1.2s; }
+    .empty-cards i:nth-child(3) { animation-delay: -2.4s; }
+  }
+</style>
+{% endmacro %}
+
+{# 分页胶囊。p = Flask-SQLAlchemy Pagination 对象；endpoint = url_for 端点；
+   page_param = 页码查询参数名（个人空间双分页用 page_t/page_p）；
+   其余查询参数（slug/sort/q/user_id…）以关键字参数传入，收进 kwargs 原样进 url_for。 #}
+{% macro pager(p, endpoint, page_param='page') %}
+{% if p.pages > 1 %}
+<nav class="pg" aria-label="分页">
+  {% if p.has_prev %}
+    {% set _ = kwargs.update({page_param: p.prev_num}) %}
+    <a class="pg-btn" href="{{ url_for(endpoint, **kwargs) }}" rel="prev">‹ 上一页</a>
+  {% else %}
+    <span class="pg-btn is-disabled" aria-disabled="true">‹ 上一页</span>
+  {% endif %}
+  <span class="pg-nums">
+    <span class="pg-status">第 {{ p.page }} / {{ p.pages }} 页</span>
+    {# 页码窗口：N≤7 全部展开；N>7 折叠为 1 … p-1 [p] p+1 … N #}
+    {% set page = p.page %}
+    {% set pages = p.pages %}
+    {% if pages <= 7 %}
+      {% set items = range(1, pages + 1) | list %}
+    {% else %}
+      {% set items = [1] %}
+      {% if page - 1 > 2 %}{% set _ = items.append('…') %}{% endif %}
+      {% if page - 1 >= 2 %}{% set _ = items.append(page - 1) %}{% endif %}
+      {% if page > 1 and page < pages %}{% set _ = items.append(page) %}{% endif %}
+      {% if page + 1 <= pages - 1 %}{% set _ = items.append(page + 1) %}{% endif %}
+      {% if page + 1 < pages - 1 %}{% set _ = items.append('…') %}{% endif %}
+      {% set _ = items.append(pages) %}
+    {% endif %}
+    {% for n in items %}
+      {% if n == '…' %}
+        <span class="pg-ellipsis" aria-hidden="true">…</span>
+      {% elif n == page %}
+        <span class="pg-btn is-current" aria-current="page">{{ n }}</span>
+      {% else %}
+        {% set _ = kwargs.update({page_param: n}) %}
+        <a class="pg-btn" href="{{ url_for(endpoint, **kwargs) }}" aria-label="第 {{ n }} 页">{{ n }}</a>
+      {% endif %}
+    {% endfor %}
+  </span>
+  {% if p.has_next %}
+    {% set _ = kwargs.update({page_param: p.next_num}) %}
+    <a class="pg-btn" href="{{ url_for(endpoint, **kwargs) }}" rel="next">下一页 ›</a>
+  {% else %}
+    <span class="pg-btn is-disabled" aria-disabled="true">下一页 ›</span>
+  {% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# 空态。variant='cards' 放三张纯 CSS 卡背；variant='icon' 只放一个轻量图标（emoji/☆）。
+   link_text + link_url 给了才渲染引导按钮，link_class 默认主按钮；
+   hidden=True 时给容器加 hidden 属性（供 JS 控制显隐），id 供 JS 定位。 #}
+{% macro empty_state(title, subtitle='', variant='cards', icon='☆', link_text='', link_url='', link_class='btn btn-primary', id='', hidden=False) %}
+<div class="empty-state"{% if id %} id="{{ id }}"{% endif %}{% if hidden %} hidden{% endif %}>
+  {% if variant == 'cards' %}
+  <div class="empty-cards" aria-hidden="true"><i>☆</i><i>★</i><i>☆</i></div>
+  {% else %}
+  <div class="empty-icon" aria-hidden="true">{{ icon }}</div>
+  {% endif %}
+  <p class="empty-title">{{ title }}</p>
+  {% if subtitle %}<p class="empty-desc">{{ subtitle }}</p>{% endif %}
+  {% if link_text and link_url %}<a class="{{ link_class }} empty-link" href="{{ link_url }}">{{ link_text }}</a>{% endif %}
+</div>
+{% endmacro %}
