@@ -8,7 +8,11 @@
 
 <p align="center">Python · Flask · SQLAlchemy · SQLite · 原生 JavaScript · GSAP · PWA</p>
 
+<p align="center"><a href="https://livetwin.loveneko.cn/">在线网站</a> · <a href="#本地启动">本地启动</a> · <a href="docs/local-development.md">自托管与数据维护</a></p>
+
 <p align="center"><a href="https://github.com/AriaEternity/live-twin-community/actions/workflows/ci.yml"><img src="https://github.com/AriaEternity/live-twin-community/actions/workflows/ci.yml/badge.svg" alt="GitHub Actions 检查状态"></a></p>
+
+在线网站由维护者独立运行；浏览主题内容与卡片工具可直接访问，发帖、私信和保存卡组等功能需登录。线上实例有自己的配置与内容，开源仓库不包含其业务数据或账号。
 
 > 封面是 AI 生成的装饰视觉；下方截图展示项目的真实界面。项目为非官方粉丝作品，角色、卡片与相关素材的权利说明见 [第三方素材说明](THIRD_PARTY_NOTICES.md)。
 
